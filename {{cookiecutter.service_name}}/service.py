@@ -1,6 +1,5 @@
 # see https://zoo-project.github.io/workshops/2014/first_service.html#f1
 import pathlib
-import platform
 
 try:
     import zoo
@@ -118,9 +117,10 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             self.unset_http_proxy_env()
 
             # DEBUG
-            # logger.info(f"zzz PRE-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
+            logger.info(f"zzz PRE-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
             
             # decode the JWT token to get the user name
+            logger.info("Decode the JWT token to get the user name")
             if self.ades_rx_token:
                 self.username = self.get_user_name(
                     jwt.decode(self.ades_rx_token, options={"verify_signature": False})
@@ -136,6 +136,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                 logger.info(f"Using Workspace API endpoint {workspace_api_endpoint}")
 
                 # Request: Get Workspace Details
+                logger.info("Get Workspace Details")
                 headers = {
                     "accept": "application/json",
                     "Authorization": f"Bearer {self.ades_rx_token}",
@@ -145,6 +146,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                 # GOOD response from Workspace API - use the details
                 if get_workspace_details_response.ok:
                     workspace_response = get_workspace_details_response.json()
+                    logger.info(f"Workspace details: {}")
 
                     logger.info("Set user bucket settings")
 
@@ -183,7 +185,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             self.unset_http_proxy_env()
 
             # DEBUG
-            # logger.info(f"zzz POST-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
+            logger.info(f"zzz POST-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
 
             logger.info("Set user bucket settings")
             os.environ["AWS_S3_ENDPOINT"] = self.conf["additional_parameters"]["STAGEOUT_AWS_SERVICEURL"]
@@ -300,10 +302,11 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
         conf["additional_parameters"]["STAGEOUT_OUTPUT"] = os.environ.get("STAGEOUT_OUTPUT", "eoepca")
 
         # DEBUG
-        # logger.info(f"init_config_defaults: additional_parameters...\n{json.dumps(conf['additional_parameters'], indent=2)}\n")
+        logger.info(f"init_config_defaults: additional_parameters...\n{json.dumps(conf['additional_parameters'], indent=2)}\n")
 
     @staticmethod
     def get_user_name(decodedJwt) -> str:
+        logger.info(f"decodedJwt: {decodedJwt}")
         for key in ["username", "user_name", "preferred_username"]:
             if key in decodedJwt:
                 return decodedJwt[key]
@@ -316,9 +319,11 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
         :param yaml file to load
         """
+        logger.info(f"Open file {fileName}")
         try:
             with open(fileName, "r") as file:
                 data = yaml.safe_load(file)
+            logger.info(data)
             return data
         # if file does not exist
         except FileNotFoundError:
@@ -394,10 +399,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
-    try:
-        logger.info(f"Starting service.py from {platform.node()}")
-    except Exception as e:
-        logger.error("Starting service.py but cannot determine platform.node() ")
+    logger.info(f"Starting service.py")
 
     try:
         with open(
@@ -409,8 +411,10 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         ) as stream:
             cwl = yaml.safe_load(stream)
 
+        logger.info("Creating custom execution_handler")
         execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf)
 
+        logger.info("Creating ZooCalrissianRunner")
         runner = ZooCalrissianRunner(
             cwl=cwl,
             conf=conf,
@@ -431,6 +435,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         )
         os.chdir(working_dir)
 
+        logger.info("Starting runner execution.")
         exit_status = runner.execute()
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
