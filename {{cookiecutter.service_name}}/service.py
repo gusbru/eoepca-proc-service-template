@@ -115,6 +115,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
     def pre_execution_hook(self):
         try:
             logger.info("Pre execution hook")
+            logger.info(f"Pre execution hook running on pod {platform.node()}")
             self.unset_http_proxy_env()
 
             # DEBUG
