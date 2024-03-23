@@ -21,6 +21,7 @@ except ImportError:
 import json
 import os
 import sys
+import platform
 from urllib.parse import urlparse
 
 import boto3  # noqa: F401
@@ -117,7 +118,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             self.unset_http_proxy_env()
 
             # DEBUG
-            # logger.info(f"zzz PRE-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
+            logger.info(f"zzz PRE-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
             
             # decode the JWT token to get the user name
             if self.ades_rx_token:
@@ -182,7 +183,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             self.unset_http_proxy_env()
 
             # DEBUG
-            # logger.info(f"zzz POST-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
+            logger.info(f"zzz POST-HOOK - config...\n{json.dumps(self.conf, indent=2)}\n")
 
             logger.info("Set user bucket settings")
             os.environ["AWS_S3_ENDPOINT"] = self.conf["additional_parameters"]["STAGEOUT_AWS_SERVICEURL"]
@@ -193,6 +194,10 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             StacIO.set_default(CustomStacIO)
 
             logger.info(f"Read catalog => STAC Catalog URI: {output['StacCatalogUri']}")
+            logger.info(f"AWS_S3_ENDPOINT = {os.environ['AWS_S3_ENDPOINT']}")
+            logger.info(f"AWS_ACCESS_KEY_ID = {os.environ['AWS_ACCESS_KEY_ID']}")
+            logger.info(f"AWS_SECRET_ACCESS_KEY = {os.environ['AWS_SECRET_ACCESS_KEY']}")
+            logger.info(f"AWS_REGION = {os.environ['AWS_REGION']}")
             try:
                 s3_path = output["StacCatalogUri"]
                 if s3_path.count("s3://")==0:
@@ -238,8 +243,10 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
             # Set the feature collection to be returned
             self.feature_collection = json.dumps(collection_dict, indent=2)
+            logger.info(f"self.feature_collection = {self.feature_collection}")
 
             # Register with the workspace
+            logger.info(f"Register with the workspace? {self.use_workspace}")
             if self.use_workspace:
                 logger.info(f"Register collection in workspace {self.workspace_prefix}-{self.username}")
                 headers = {
@@ -247,6 +254,9 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                     "Authorization": f"Bearer {self.ades_rx_token}",
                 }
                 api_endpoint = f"{self.workspace_url}/workspaces/{self.workspace_prefix}-{self.username}"
+                logger.info(f"api_endpoint: {api_endpoint}")
+                logger.info(f"payload = {collection_dict}")
+                logger.info(f"headers = {headers}")
                 r = requests.post(
                     f"{api_endpoint}/register-json",
                     json=collection_dict,
@@ -260,9 +270,12 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                 #).json()
             
                 logger.info(f"Register processing results to collection")
+                stac_catalog = {"type": "stac-item", "url": output['StacCatalogUri'].replace("/catalog.json", "")}
+                logger.info(f"stac_catalog = {stac_catalog}")
                 r = requests.post(f"{api_endpoint}/register",
-                                json={"type": "stac-item", "url": output['StacCatalogUri'].replace("/catalog.json", "")},
+                                json=stac_catalog,
                                 headers=headers,)
+                r.raise_for_status()
                 logger.info(f"Register processing results response: {r.status_code}")
 
         except Exception as e:
@@ -299,10 +312,11 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
         conf["additional_parameters"]["STAGEOUT_OUTPUT"] = os.environ.get("STAGEOUT_OUTPUT", "eoepca")
 
         # DEBUG
-        # logger.info(f"init_config_defaults: additional_parameters...\n{json.dumps(conf['additional_parameters'], indent=2)}\n")
+        logger.info(f"init_config_defaults: additional_parameters...\n{json.dumps(conf['additional_parameters'], indent=2)}\n")
 
     @staticmethod
     def get_user_name(decodedJwt) -> str:
+        logger.info(f"decodedJwt = {decodedJwt}")
         for key in ["username", "user_name", "preferred_username"]:
             if key in decodedJwt:
                 return decodedJwt[key]
@@ -393,8 +407,13 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
+    logger.info(f"Starting service.py on node {platform.node()}")
+    logger.info(f"conf = {conf}")
+    logger.info(f"inputs = {inputs}")
+    logger.info(f"outputs = {outputs}")
 
     try:
+        logger.info("open file: app-package.cwl")
         with open(
             os.path.join(
                 pathlib.Path(os.path.realpath(__file__)).parent.absolute(),
@@ -404,8 +423,10 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         ) as stream:
             cwl = yaml.safe_load(stream)
 
+        logger.info(f"Creating custom execution_handler with conf")
         execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf)
 
+        logger.info("Creating ZooCalrissianRunner runner")
         runner = ZooCalrissianRunner(
             cwl=cwl,
             conf=conf,
@@ -426,6 +447,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         )
         os.chdir(working_dir)
 
+        logger.info("Starting execute runner")
         exit_status = runner.execute()
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
