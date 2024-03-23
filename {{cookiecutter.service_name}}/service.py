@@ -1,5 +1,6 @@
 # see https://zoo-project.github.io/workshops/2014/first_service.html#f1
 import pathlib
+import platform
 
 try:
     import zoo
@@ -393,6 +394,10 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
+    try:
+        logger.info(f"Starting service.py from {platform.node()}")
+    except Exception as e:
+        logger.error("Starting service.py but cannot determine platform.node() ")
 
     try:
         with open(
