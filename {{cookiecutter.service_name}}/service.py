@@ -1,5 +1,7 @@
 # see https://zoo-project.github.io/workshops/2014/first_service.html#f1
 import pathlib
+import sys
+print(f"python path = {sys.path}")
 
 try:
     import zoo
