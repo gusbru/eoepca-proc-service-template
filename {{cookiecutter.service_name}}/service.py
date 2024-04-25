@@ -2,6 +2,8 @@
 import pathlib
 import sys
 print(f"python path = {sys.path}")
+print('getcwd:      ', os.getcwd())
+print('__file__:    ', __file__)
 
 try:
     import zoo
