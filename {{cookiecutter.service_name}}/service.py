@@ -451,6 +451,8 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
         try:
             logger.info("Starting handle_outputs")
 
+            logger.info(f"tool_logs = {tool_logs}")
+
             # link element to add to the statusInfo
             servicesLogs = [
                 {
@@ -462,6 +464,9 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                 }
                 for tool_log in tool_logs
             ]
+
+            logger.info(f"servicesLogs constructed = {servicesLogs}")
+
             for i in range(len(servicesLogs)):
                 okeys = ["url", "title", "rel"]
                 keys = ["url", "title", "rel"]
