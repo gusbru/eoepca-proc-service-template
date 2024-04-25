@@ -452,6 +452,9 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             logger.info("Starting handle_outputs")
 
             logger.info(f"tool_logs = {tool_logs}")
+            logger.info(f"output = {output}")
+            logger.info(f"log = {log}")
+            logger.info(f"usage_report = {usage_report}")
 
             # link element to add to the statusInfo
             servicesLogs = [
