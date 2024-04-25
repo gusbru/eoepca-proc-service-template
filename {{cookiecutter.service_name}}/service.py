@@ -1,9 +1,5 @@
 # see https://zoo-project.github.io/workshops/2014/first_service.html#f1
 import pathlib
-import sys
-print(f"python path = {sys.path}")
-print('getcwd:      ', os.getcwd())
-print('__file__:    ', __file__)
 
 try:
     import zoo
@@ -27,6 +23,10 @@ import os
 import sys
 import platform
 from urllib.parse import urlparse
+
+print(f"python path = {sys.path}")
+print('getcwd:      ', os.getcwd())
+print('__file__:    ', __file__)
 
 import boto3  # noqa: F401
 import botocore
