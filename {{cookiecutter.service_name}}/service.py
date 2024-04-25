@@ -438,7 +438,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
         return self.conf.get("additional_parameters", {})
 
-    def handle_outputs(self, log, output, usage_report, tool_logs):
+    def handle_outputs(self, log, output, usage_report, tool_logs, namespace):
         """
         Handle the output files of the execution.
 
@@ -453,8 +453,17 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
             logger.info(f"tool_logs = {tool_logs}")
             logger.info(f"output = {output}")
-            logger.info(f"log = {log}")
+            # logger.info(f"log = {log}")
             logger.info(f"usage_report = {usage_report}")
+
+            # save log to file
+            log_name = "logs.log"
+            log_file = os.path.join(self.conf["main"]["tmpPath"], namespace, log_name)
+            logger.info(f"saving log to file {log_file}")
+            with open(log_file, "w") as f:
+                f.write(log)
+
+            tool_logs.append(f"./{log_name}")
 
             # link element to add to the statusInfo
             servicesLogs = [
