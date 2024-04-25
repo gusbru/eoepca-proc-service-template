@@ -467,14 +467,15 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
             logger.info(f"servicesLogs constructed = {servicesLogs}")
 
+            if "service_logs" not in self.conf:
+                self.conf["service_logs"] = {}
+
             for i in range(len(servicesLogs)):
                 okeys = ["url", "title", "rel"]
                 keys = ["url", "title", "rel"]
                 if i > 0:
                     for j in range(len(keys)):
                         keys[j] = keys[j] + "_" + str(i)
-                if "service_logs" not in self.conf:
-                    self.conf["service_logs"] = {}
                 for j in range(len(keys)):
                     self.conf["service_logs"][keys[j]] = servicesLogs[i][okeys[j]]
 
