@@ -1,5 +1,6 @@
 # see https://zoo-project.github.io/workshops/2014/first_service.html#f1
 import pathlib
+from uuid import uuid4
 
 try:
     import zoo
@@ -234,8 +235,9 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             collection_id = self.inputs.get("collection_id", {}).get("value")
             if collection_id is None:
                 collection_id = lenv.get("usid", "")
-            # self.conf["additional_parameters"]["collection_id"] = lenv.get("usid", "")
-            process = os.path.join("processing-results", collection_id)
+            
+            process_job_id = lenv.get("usid", str(uuid4()))
+            process = os.path.join("processing-results", process_job_id)
             
             logger.info(f"collection_id = {collection_id}")
             logger.info(f"process = {process}")
