@@ -231,15 +231,17 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             # instead of using a random number for collection_id, we try to use 
             # collection name from input. Use usid if collection name is not available
             # ###########################################################################
-            collection_id = self.inputs.get("collection_id")
+            collection_id = self.inputs.get("collection_id", {}).get("value")
             if collection_id is None:
                 collection_id = lenv.get("usid", "")
             # self.conf["additional_parameters"]["collection_id"] = lenv.get("usid", "")
-            self.conf["additional_parameters"]["collection_id"] = collection_id
-            self.conf["additional_parameters"]["process"] = os.path.join("processing-results", self.conf["additional_parameters"]["collection_id"])
+            process = os.path.join("processing-results", collection_id)
             
-            logger.info(f"conf.additional_parameters.collection_id = {self.conf['additional_parameters']['collection_id']}")
-            logger.info(f"conf.additional_parameters.process = {self.conf['additional_parameters']['process']}")
+            logger.info(f"collection_id = {collection_id}")
+            logger.info(f"process = {process}")
+            
+            self.conf["additional_parameters"]["collection_id"] = collection_id
+            self.conf["additional_parameters"]["process"] = process
 
         except Exception as e:
             logger.error("ERROR in pre_execution_hook...")
