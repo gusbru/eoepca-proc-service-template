@@ -94,11 +94,12 @@ StacIO.set_default(CustomStacIO)
 
 
 class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
-    def __init__(self, conf):
+    def __init__(self, conf, inputs):
         super().__init__()
         logger.info("Init EoepcaCalrissianRunnerExecutionHandler")
         
         self.conf = conf
+        self.inputs = inputs
 
         # #####################################################################################################
         # TODO: check why we need this
@@ -223,11 +224,20 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
             lenv = self.conf.get("lenv", {})
             logger.info(f"lenv = {lenv}")
-            # ###############################################
-            # TODO: check where this is used
-            # ###############################################
-            self.conf["additional_parameters"]["collection_id"] = lenv.get("usid", "")
+            # ###########################################################################
+            # TODO: check where this is used 
+            # -> Additional Parameters are passed to the CWL 
+            # Note:
+            # instead of using a random number for collection_id, we try to use 
+            # collection name from input. Use usid if collection name is not available
+            # ###########################################################################
+            collection_id = self.inputs.get("collection_id")
+            if collection_id is None:
+                collection_id = lenv.get("usid", "")
+            # self.conf["additional_parameters"]["collection_id"] = lenv.get("usid", "")
+            self.conf["additional_parameters"]["collection_id"] = collection_id
             self.conf["additional_parameters"]["process"] = os.path.join("processing-results", self.conf["additional_parameters"]["collection_id"])
+            
             logger.info(f"conf.additional_parameters.collection_id = {self.conf['additional_parameters']['collection_id']}")
             logger.info(f"conf.additional_parameters.process = {self.conf['additional_parameters']['process']}")
 
@@ -340,9 +350,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                 logger.info(f"Register processing results to collection")
                 stac_catalog = {"type": "stac-item", "url": output['StacCatalogUri'].replace("/catalog.json", "")}
                 logger.info(f"stac_catalog = {stac_catalog}")
-                r = requests.post(f"{api_endpoint}/register",
-                                json=stac_catalog,
-                                headers=headers,)
+                r = requests.post(f"{api_endpoint}/register", json=stac_catalog, headers=headers)
                 r.raise_for_status()
                 logger.info(f"Register processing results response: {r.status_code}")
             else:
@@ -518,7 +526,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             cwl = yaml.safe_load(stream)
 
         logger.info(f"Creating custom execution_handler with conf")
-        execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf)
+        execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf, inputs=inputs)
 
         logger.info(f"conf (with modification done by EoepcaCalrissianRunnerExecutionHandler):\n{json.dumps(conf, indent=4)}")
 
