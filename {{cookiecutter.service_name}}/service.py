@@ -125,6 +125,8 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             self.workspace = self.decoded_token.get("workspace")
             self.use_workspace = self.workspace != "global"
             self.username = self.decoded_token.get("preferred_username")
+            self.registration_api_url = eoepca.get("registration_api_url", "")
+            self.resource_catalog_api_url = eoepca.get("resource_catalog_api_url", "")
             logger.info(f"Internal submission for user {self.username} in workspace {self.workspace}")
         else:
             # external/user submission
