@@ -138,6 +138,8 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             # }
             self.workspace_url = eoepca.get("workspace_url", "")
             self.workspace_prefix = eoepca.get("workspace_prefix", "")
+            self.registration_api_url = eoepca.get("registration_api_url", "")
+            self.resource_catalog_api_url = eoepca.get("resource_catalog_api_url", "")
             
             # Check if the workspace settings are available
             if self.workspace_url and self.workspace_prefix:
@@ -351,17 +353,37 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
                 #    f"{api_endpoint}/collections/{collection.id}", headers=headers
                 #).json()
             
-                logger.info(f"Register processing results to collection")
+                logger.info(f"Register processing results to collection: {collection_id}")
                 stac_catalog = {"type": "stac-item", "url": output['StacCatalogUri'].replace("/catalog.json", "")}
                 logger.info(f"stac_catalog = {stac_catalog}")
                 r = requests.post(f"{api_endpoint}/register", json=stac_catalog, headers=headers)
                 r.raise_for_status()
                 logger.info(f"Register processing results response: {r.status_code}")
             else:
-                logger.info("Registering processing result into Global (NOT IMPLEMENTED)")
-                # #####################################################################################################
-                # TODO: fill this part
-                # #####################################################################################################
+                logger.info(f"Register processing results to global collection: {collection_id}")
+                stac_catalog = {"type": "stac-item", "url": output['StacCatalogUri'].replace("/catalog.json", "")}
+                logger.info(f"stac_catalog (GLOBAL)= {stac_catalog}")
+
+                # get collection
+                catalog_response = requests.get(f"{self.resource_catalog_api_url}/collections/{collection_id}")
+                catalog_response.raise_for_status()
+                logger.info(f"catalog_response = {catalog_response.status_code}")
+                
+                catalog_response_body = catalog_response.json()
+                if catalog_response_body.get("id") is None:
+                    # if there is no collection, register one
+                    logger.info(f"Registering new collection {collection_id}")
+                    new_collection_response = requests.post(f"{self.registration_api_url}/register-collection", json=collection_dict)
+                    new_collection_response.raise_for_status()
+                    logger.info(f"new_collection_response = {new_collection_response.status_code}")
+
+                # register the processing result
+                logger.info(f"Registering processing results to global collection: {collection_id}")
+                stac_catalog = {"type": "stac-item", "url": output['StacCatalogUri'].replace("/catalog.json", "")}
+                r = requests.post(f"{self.registration_api_url}/register", json=stac_catalog)
+                r.raise_for_status()
+                logger.info(f"Register processing results response: {r.status_code}")
+
 
         except Exception as e:
             logger.error("ERROR in post_execution_hook...")
@@ -567,6 +589,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         if exit_status == zoo.SERVICE_SUCCEEDED:
             logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
             outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
+            logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
             return zoo.SERVICE_SUCCEEDED
 
         else:
