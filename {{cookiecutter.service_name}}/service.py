@@ -104,6 +104,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
         # #####################################################################################################
         # TODO: check why we need this
+        # I think to be able to use kubectl. It calls a service kubeproxy on zoo namespace
         # #####################################################################################################
         self.http_proxy_env = os.environ.get("HTTP_PROXY", None)
 
