@@ -48,6 +48,268 @@ import traceback
 logger.remove()
 logger.add(sys.stderr, level="INFO")
 
+# #####################################################################################################
+from dataclasses import dataclass, field
+import logging
+import json
+from typing import Optional
+from uuid import uuid4
+
+from kubernetes import client, config, watch
+import yaml
+
+@dataclass
+class StorageCredentials:
+    access_key: str
+    secret_key: str
+
+
+@dataclass
+class WorkflowConfig:
+    namespace: str
+    workflow_name: Optional[str] = field(default=None)
+    workflow_parameters: list[dict] = field(default_factory=list)
+    storage_credentials: Optional[StorageCredentials] = field(default=None)
+
+
+class ArgoWorkflow:
+    def __init__(self, workflow_config: WorkflowConfig):
+        self.workflow_config = workflow_config
+        self.job_namespace: Optional[str] = None
+        self.workflow_manifest = None
+
+        # Load the kube config from the default location
+        logger.info("Loading kube config")
+        config.load_kube_config()
+
+        # Create a new client
+        logger.info("Creating a new K8s client")
+        self.v1 = client.CoreV1Api()
+        self.rbac_v1 = client.RbacAuthorizationV1Api()
+        self.custom_api = client.CustomObjectsApi()
+
+    def _create_job_namespace(self):
+        # Create the namespace
+        if self.workflow_config.workflow_name is None:
+            raise ValueError("workflow_name is required")
+
+        self.job_namespace = f"{self.workflow_config.namespace}-{self.workflow_config.workflow_name}-{uuid4().hex[:6]}"
+        logger.info(f"Creating namespace: {self.job_namespace}")
+        namespace_body = client.V1Namespace(
+            metadata=client.V1ObjectMeta(name=self.job_namespace)
+        )
+        self.v1.create_namespace(body=namespace_body)
+
+    # Create storage secret on K8s
+    def _create_job_secret(self):
+        logger.info(f"Creating storage secrets for namespace: {self.job_namespace}")
+        secret_body = client.V1Secret(
+            metadata=client.V1ObjectMeta(
+                name="storage-credentials"
+            ),  # this name needs to match the configuration for the workflow-controller (workflow-controller-configmap)
+            string_data={
+                "access-key": self.workflow_config.storage_credentials.access_key,
+                "secret-key": self.workflow_config.storage_credentials.secret_key,
+            },
+        )
+        self.v1.create_namespaced_secret(namespace=self.job_namespace, body=secret_body)
+
+    # Create the Role
+    def _create_job_role(self):
+        logger.info(f"Creating role for namespace: {self.job_namespace}")
+        role_body = client.V1Role(
+            metadata=client.V1ObjectMeta(name="pod-patcher"),
+            rules=[
+                client.V1PolicyRule(
+                    api_groups=[""],
+                    resources=["pods"],
+                    verbs=[
+                        "get",
+                        "list",
+                        "watch",
+                        "create",
+                        "update",
+                        "patch",
+                        "delete",
+                    ],
+                )
+            ],
+        )
+        self.rbac_v1.create_namespaced_role(
+            namespace=self.job_namespace, body=role_body
+        )
+
+    # Create the RoleBinding
+    def _create_job_role_binding(self):
+        logger.info(f"Creating role binding for namespace: {self.job_namespace}")
+        role_binding_body = client.V1RoleBinding(
+            metadata=client.V1ObjectMeta(name="pod-patcher-binding"),
+            subjects=[
+                {
+                    "kind": "ServiceAccount",
+                    "name": "default",
+                    "namespace": self.job_namespace,
+                }
+            ],
+            role_ref=client.V1RoleRef(
+                api_group="rbac.authorization.k8s.io", kind="Role", name="pod-patcher"
+            ),
+        )
+        self.rbac_v1.create_namespaced_role_binding(
+            namespace=self.job_namespace, body=role_binding_body
+        )
+
+    def _save_template_job_namespace(self):
+        template_manifest = self.workflow_manifest
+        template_manifest["metadata"]["namespace"] = self.job_namespace
+        template_manifest["metadata"]["resourceVersion"] = None
+        self.save_workflow_template(
+            template_manifest=template_manifest, namespace=self.job_namespace
+        )
+
+    def load_workflow_template(self):
+        try:
+            if self.workflow_config.workflow_name is None:
+                raise ValueError("workflow_name is required")
+
+            # Get the template
+            self.workflow_manifest = self.custom_api.get_namespaced_custom_object(
+                group="argoproj.io",
+                version="v1alpha1",
+                namespace=self.workflow_config.namespace,
+                plural="workflowtemplates",
+                name=self.workflow_config.workflow_name,
+            )
+
+        except Exception as e:
+            logger.error(f"Error loading template: {e}")
+            raise e
+
+    def save_workflow_template(
+        self, template_manifest: dict = None, namespace: Optional[str] = None
+    ):
+        try:
+            # Create the template
+            namespace = namespace or self.workflow_config.namespace
+            workflow_name = template_manifest["metadata"]["name"]
+            logger.info(
+                f"Creating workflow template {workflow_name} on namespace {namespace}"
+            )
+
+            self.custom_api.create_namespaced_custom_object(
+                group="argoproj.io",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="workflowtemplates",
+                body=template_manifest,
+            )
+            logger.info(f"Workflow template {workflow_name} created successfully")
+        except Exception as e:
+            logger.error(f"Error saving template: {e}")
+            raise e
+
+    # Submit the workflow
+    def _submit_workflow(self):
+        if self.workflow_config.workflow_name is None:
+            raise ValueError("workflow_name is required")
+
+        workflow_manifest = {
+            "apiVersion": "argoproj.io/v1alpha1",
+            "kind": "Workflow",
+            "metadata": {"generateName": f"{self.workflow_config.workflow_name}-"},
+            "spec": {
+                "workflowTemplateRef": {
+                    "name": self.workflow_manifest["metadata"]["name"],
+                    "namespace": self.workflow_manifest["metadata"]["namespace"],
+                },
+                "arguments": {
+                    "parameters": self.workflow_config.workflow_parameters  # Add parameters if provided
+                },
+            },
+        }
+
+        workflow = self.custom_api.create_namespaced_custom_object(
+            group="argoproj.io",
+            version="v1alpha1",
+            namespace=self.job_namespace,
+            plural="workflows",
+            body=workflow_manifest,
+        )
+
+        return workflow
+
+    # Monitor the workflow execution
+    def monitor_workflow(self, workflow: dict):
+        logger.info(f"Monitoring workflow {workflow['metadata']['name']}")
+
+        if self.job_namespace is None:
+            raise ValueError("job_namespace is required")
+
+        w = watch.Watch()
+        workflow_stream = w.stream(
+            self.custom_api.list_namespaced_custom_object,
+            group="argoproj.io",
+            version="v1alpha1",
+            namespace=self.job_namespace,
+            plural="workflows",
+            field_selector=f"metadata.name={workflow['metadata']['name']}",
+        )
+
+        for data in workflow_stream:
+            event_data = data["type"]
+            workflow_data = data["object"]["metadata"]["name"]
+            phase_data = data["object"].get("status", {}).get("phase")
+            progress_data = data["object"].get("status", {}).get("progress")
+
+            # Stop watching if the workflow has reached a terminal state
+            if phase_data in ["Succeeded", "Failed", "Error"]:
+                logger.info(
+                    f"Workflow {workflow_data} has reached a terminal state: {phase_data}"
+                )
+                # need to save this on the logs
+                logger.info(json.dumps(data, indent=2))
+                w.stop()
+
+            # print(data)
+            logger.info(
+                f"Event: {event_data}, Workflow: {workflow_data}, Phase: {phase_data}, Progress: {progress_data}"
+            )
+
+        logger.info("Workflow monitoring complete")
+
+    def run(self):
+        # Load the workflow template
+        logger.info(f"Loading workflow template: {self.workflow_config.workflow_name}")
+        self.load_workflow_template()
+
+        # Create the namespace, access key, and secret key
+        logger.info("Creating namespace, roles, and storage secrets")
+        self._create_job_namespace()
+        self._create_job_secret()
+        self._create_job_role()
+        self._create_job_role_binding()
+
+        # Template workflow needs to be on the same namespace as the job
+        self._save_template_job_namespace()
+
+        workflow = self._submit_workflow()
+        self.monitor_workflow(workflow)
+
+    def run_workflow_from_file(self, workflow_file: str):
+        # Create the namespace, access key, and secret key
+        logger.info("Creating namespace, roles, and storage secrets")
+        self._create_job_namespace()
+        self._create_job_secret()
+        self._create_job_role()
+        self._create_job_role_binding()
+
+        # Template workflow needs to be on the same namespace as the job
+        self._save_template_job_namespace()
+
+        workflow = self._submit_workflow()
+        self.monitor_workflow(workflow)
+# #####################################################################################################
+
 
 class CustomStacIO(DefaultStacIO):
     """Custom STAC IO class that uses boto3 to read from S3."""
@@ -540,7 +802,6 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
     try:
-        logger.info(f"Starting service.py on node {platform.node()}")
         logger.info(f"inputs = {json.dumps(inputs, indent=4)}")
         logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
 
@@ -552,24 +813,24 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             ),
             "r",
         ) as stream:
-            cwl = yaml.safe_load(stream)
+            argo_template = yaml.safe_load(stream)
 
-        logger.info(f"Creating custom execution_handler with conf")
-        execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf, inputs=inputs)
+        # logger.info(f"Creating custom execution_handler with conf")
+        # execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf, inputs=inputs)
 
-        logger.info(f"conf (with modification done by EoepcaCalrissianRunnerExecutionHandler):\n{json.dumps(conf, indent=4)}")
+        # logger.info(f"conf (with modification done by EoepcaCalrissianRunnerExecutionHandler):\n{json.dumps(conf, indent=4)}")
 
-        logger.info("Creating ZooCalrissianRunner runner")
-        # #####################################################################################################
-        # TODO: image_pull_secrets are handle by get_secrets method on the EoepcaCalrissianRunnerExecutionHandler
-        # #####################################################################################################
-        runner = ZooCalrissianRunner(
-            cwl=cwl,
-            conf=conf,
-            inputs=inputs,
-            outputs=outputs,
-            execution_handler=execution_handler,
-        )
+        # logger.info("Creating ZooCalrissianRunner runner")
+        # # #####################################################################################################
+        # # TODO: image_pull_secrets are handle by get_secrets method on the EoepcaCalrissianRunnerExecutionHandler
+        # # #####################################################################################################
+        # runner = ZooCalrissianRunner(
+        #     cwl=cwl,
+        #     conf=conf,
+        #     inputs=inputs,
+        #     outputs=outputs,
+        #     execution_handler=execution_handler,
+        # )
         # DEBUG
         # runner.monitor_interval = 1
 
@@ -586,8 +847,39 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         logger.info("Starting execute runner")
 
+        # run workflow on Argo
+        # from API
+        workspace = "ws-bob"
+        workflow_name = argo_template["metadata"]["name"]
+        parameters = [{"name": "message", "value": "test my first workflow"}]
+
+        logger.info(f"preparing job on workspace {workspace} with workflow {workflow_name}")
+
+        # comes from workspace-api
+        access_key = "eoepca"
+        secret_key = "changeme"
+
+        #############################################################
+        workflow_config = WorkflowConfig(
+            namespace=workspace,
+            workflow_name=workflow_name,
+            workflow_parameters=parameters,
+            storage_credentials=StorageCredentials(
+                access_key=access_key, secret_key=secret_key
+            ),
+        )
+
+        # run the workflow
+        logger.info("Running workflow")
+        argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
+        logger.inf
+        argo_workflow.run_workflow_from_file(argo_template)
+
         # This is a blocking execution
-        exit_status = runner.execute()
+        # exit_status = runner.execute()
+        
+        # TODO: need to properly handle the exit_status
+        exit_status = zoo.SERVICE_SUCCEEDED
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
             logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
