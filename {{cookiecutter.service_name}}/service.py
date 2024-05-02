@@ -842,8 +842,24 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         # we are changing the working directory to store the outputs
         # in a directory dedicated to this execution
         # working_dir = os.path.join(conf["main"]["tmpPath"], runner.get_namespace_name())
-        working_dir = os.path.join(conf["main"]["tmpPath"], conf["lenv"]["Identifier"] + "-" + conf["lenv"]["usid"])
-        logger.info(f"Working directory: {working_dir}")
+        tmp_path = conf["main"]["tmpPath"]
+        process_identifier = conf["lenv"]["Identifier"]
+        process_usid = conf["lenv"]["usid"]
+        namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
+        workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
+        workspace = f"{workspace_prefix}-{namespace}"
+        working_dir = os.path.join(tmp_path, f"{process_identifier}-{process_usid}")
+        input_parameters = json.loads(conf.get("request", {}).get("jrequest", {}))
+
+        logger.info("Basic Information")
+        logger.info(f"tmp_path = {tmp_path}")
+        logger.info(f"process_identifier = {process_identifier}")
+        logger.info(f"process_usid = {process_usid}")
+        logger.info(f"workspace = {workspace}")
+        logger.info(f"working_dir = {working_dir}")
+        logger.info(f"input_parameters = {json.dumps(input_parameters, indent=4)}")
+
+        
         os.makedirs(
             working_dir,
             mode=0o777,
@@ -855,11 +871,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         # run workflow on Argo
         # from API
-        workspace = "ws-bob"
-        workflow_name = argo_template["metadata"]["name"]
-        parameters = [{"name": "message", "value": "test my first workflow"}]
-
-        logger.info(f"preparing job on workspace {workspace} with workflow {workflow_name}")
+        logger.info(f"preparing job on workspace {workspace} with process (workflow) {process_identifier}")
 
         # TODO: get Storage credentials from workspace-api
         access_key = "eoepca"
@@ -868,8 +880,8 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         #############################################################
         workflow_config = WorkflowConfig(
             namespace=workspace,
-            workflow_name=workflow_name,
-            workflow_parameters=parameters,
+            workflow_name=process_identifier,
+            workflow_parameters=[{ 'name': k, 'value': v } for k, v in input.items()],
             storage_credentials=StorageCredentials(
                 access_key=access_key, secret_key=secret_key
             ),
@@ -887,9 +899,9 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         exit_status = zoo.SERVICE_SUCCEEDED
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
-            logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
-            outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
-            logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
+            # logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
+            # outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
+            # logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
             return zoo.SERVICE_SUCCEEDED
 
         else:
