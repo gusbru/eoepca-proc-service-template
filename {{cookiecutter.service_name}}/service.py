@@ -806,6 +806,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
     try:
+        logger.info(f"conf = {json.dumps(conf, indent=4)}")
         logger.info(f"inputs = {json.dumps(inputs, indent=4)}")
         logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
 
@@ -860,7 +861,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         logger.info(f"preparing job on workspace {workspace} with workflow {workflow_name}")
 
-        # comes from workspace-api
+        # TODO: get Storage credentials from workspace-api
         access_key = "eoepca"
         secret_key = "changeme"
 
