@@ -881,7 +881,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         workflow_config = WorkflowConfig(
             namespace=workspace,
             workflow_name=process_identifier,
-            workflow_parameters=[{ 'name': k, 'value': v } for k, v in input.items()],
+            workflow_parameters=[{ 'name': k, 'value': v } for k, v in input_parameters.items()],
             storage_credentials=StorageCredentials(
                 access_key=access_key, secret_key=secret_key
             ),
