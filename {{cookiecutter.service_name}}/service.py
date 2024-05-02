@@ -80,7 +80,8 @@ class ArgoWorkflow:
 
         # Load the kube config from the default location
         logger.info("Loading kube config")
-        config.load_kube_config()
+        # config.load_kube_config()
+        config.load_config()
 
         # Create a new client
         logger.info("Creating a new K8s client")
@@ -93,7 +94,7 @@ class ArgoWorkflow:
         if self.workflow_config.workflow_name is None:
             raise ValueError("workflow_name is required")
 
-        self.job_namespace = f"{self.workflow_config.namespace}-{self.workflow_config.workflow_name}-{uuid4().hex[:6]}"
+        self.job_namespace = f"{self.workflow_config.namespace}-{self.workflow_config.workflow_name}-{uuid4().hex[:6]}".lower()
         logger.info(f"Creating namespace: {self.job_namespace}")
         namespace_body = client.V1Namespace(
             metadata=client.V1ObjectMeta(name=self.job_namespace)
@@ -161,6 +162,8 @@ class ArgoWorkflow:
 
     def _save_template_job_namespace(self):
         template_manifest = self.workflow_manifest
+        logger.info(f"template_manifest = {json.dumps(template_manifest, indent=2)}")
+        template_manifest["metadata"]["name"] = template_manifest["metadata"]["name"].lower()
         template_manifest["metadata"]["namespace"] = self.job_namespace
         template_manifest["metadata"]["resourceVersion"] = None
         self.save_workflow_template(
@@ -216,7 +219,7 @@ class ArgoWorkflow:
         workflow_manifest = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": f"{self.workflow_config.workflow_name}-"},
+            "metadata": {"generateName": f"{self.workflow_config.workflow_name}-".lower()},
             "spec": {
                 "workflowTemplateRef": {
                     "name": self.workflow_manifest["metadata"]["name"],
@@ -295,7 +298,8 @@ class ArgoWorkflow:
         workflow = self._submit_workflow()
         self.monitor_workflow(workflow)
 
-    def run_workflow_from_file(self, workflow_file: str):
+    def run_workflow_from_file(self, workflow_file: dict):
+        self.workflow_manifest = workflow_file
         # Create the namespace, access key, and secret key
         logger.info("Creating namespace, roles, and storage secrets")
         self._create_job_namespace()
@@ -836,7 +840,8 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         # we are changing the working directory to store the outputs
         # in a directory dedicated to this execution
-        working_dir = os.path.join(conf["main"]["tmpPath"], runner.get_namespace_name())
+        # working_dir = os.path.join(conf["main"]["tmpPath"], runner.get_namespace_name())
+        working_dir = os.path.join(conf["main"]["tmpPath"], conf["lenv"]["Identifier"] + "-" + conf["lenv"]["usid"])
         logger.info(f"Working directory: {working_dir}")
         os.makedirs(
             working_dir,
@@ -872,7 +877,6 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         # run the workflow
         logger.info("Running workflow")
         argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
-        logger.inf
         argo_workflow.run_workflow_from_file(argo_template)
 
         # This is a blocking execution
