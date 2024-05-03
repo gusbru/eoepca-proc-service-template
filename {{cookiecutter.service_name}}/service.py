@@ -52,7 +52,7 @@ logger.add(sys.stderr, level="INFO")
 from dataclasses import dataclass, field
 import logging
 import json
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from kubernetes import client, config, watch
