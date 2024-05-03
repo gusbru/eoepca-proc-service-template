@@ -258,6 +258,7 @@ class ArgoWorkflow:
             field_selector=f"metadata.name={workflow['metadata']['name']}",
         )
 
+        phase_data = None
         for data in workflow_stream:
             event_data = data["type"]
             workflow_data = data["object"]["metadata"]["name"]
@@ -269,6 +270,7 @@ class ArgoWorkflow:
                 logger.info(
                     f"Workflow {workflow_data} has reached a terminal state: {phase_data}"
                 )
+                print(f"Workflow {workflow_data} has reached a terminal state: {phase_data}")
                 # need to save this on the logs
                 logger.info(json.dumps(data, indent=2))
                 w.stop()
@@ -277,8 +279,14 @@ class ArgoWorkflow:
             logger.info(
                 f"Event: {event_data}, Workflow: {workflow_data}, Phase: {phase_data}, Progress: {progress_data}"
             )
+            print(f"Event: {event_data}, Workflow: {workflow_data}, Phase: {phase_data}, Progress: {progress_data}")
 
         logger.info("Workflow monitoring complete")
+        
+        if phase_data == "Succeeded":
+            return zoo.SERVICE_SUCCEEDED
+        else:
+            return zoo.SERVICE_FAILED
 
     def run(self):
         # Load the workflow template
@@ -296,7 +304,8 @@ class ArgoWorkflow:
         self._save_template_job_namespace()
 
         workflow = self._submit_workflow()
-        self.monitor_workflow(workflow)
+        exit_status = self.monitor_workflow(workflow)
+        return exit_status
 
     def run_workflow_from_file(self, workflow_file: dict):
         self.workflow_manifest = workflow_file
@@ -311,7 +320,8 @@ class ArgoWorkflow:
         self._save_template_job_namespace()
 
         workflow = self._submit_workflow()
-        self.monitor_workflow(workflow)
+        exit_status = self.monitor_workflow(workflow)
+        return exit_status
 # #####################################################################################################
 
 
@@ -803,6 +813,20 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             logger.error(traceback.format_exc())
             raise(e)
 
+def parse_input_parameters(conf: dict[str, Any]):
+    """
+    Parse the input parameters from the request
+
+    :param input_parameters: The input parameters from the request
+    """
+    input_parameters = conf.get("request", {}).get("jrequest", {})
+
+    for key, value in input_parameters.items():
+        if isinstance(value, dict) or isinstance(value, list):
+            input_parameters[key] = json.dumps(value)
+
+    return input_parameters
+
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
     try:
@@ -849,7 +873,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
         workspace = f"{workspace_prefix}-{namespace}"
         working_dir = os.path.join(tmp_path, f"{process_identifier}-{process_usid}")
-        input_parameters = json.loads(conf.get("request", {}).get("jrequest", {}))
+        input_parameters = parse_input_parameters(conf)
 
         logger.info("Basic Information")
         logger.info(f"tmp_path = {tmp_path}")
@@ -890,15 +914,10 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         # run the workflow
         logger.info("Running workflow")
         argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
-        argo_workflow.run_workflow_from_file(argo_template)
-
-        # This is a blocking execution
-        # exit_status = runner.execute()
-        
-        # TODO: need to properly handle the exit_status
-        exit_status = zoo.SERVICE_SUCCEEDED
+        exit_status = argo_workflow.run_workflow_from_file(argo_template)
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
+            # TODO: handle the outputs
             # logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
             # outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
             # logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
