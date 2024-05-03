@@ -153,8 +153,7 @@ class ArgoWorkflow:
         )
 
         # Create ConfigMap
-        api_instance = client.CoreV1Api()
-        api_instance.create_namespaced_config_map(
+        self.v1.create_namespaced_config_map(
             namespace="default",
             body=config_map
         )
