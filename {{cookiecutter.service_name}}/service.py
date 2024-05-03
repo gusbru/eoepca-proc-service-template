@@ -128,7 +128,7 @@ class ArgoWorkflow:
         )
 
         # Define ConfigMap data
-        data = json.dumps({
+        data = {
             "default-v1-s3-artifact-repository": {
                 "archiveLogs": "true",
                 "s3": {
@@ -145,7 +145,7 @@ class ArgoWorkflow:
                     }
                 }
             }
-        })
+        }
 
         # Create ConfigMap object
         config_map = client.V1ConfigMap(
