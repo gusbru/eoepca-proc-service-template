@@ -129,22 +129,19 @@ class ArgoWorkflow:
 
         # Define ConfigMap data
         data = {
-            "default-v1-s3-artifact-repository": {
-                "archiveLogs": "true",
-                "s3": {
-                    "bucket": self.workflow_config.namespace,
-                    "endpoint": self.workflow_config.storage_credentials.url,
-                    "insecure": "true",
-                    "accessKeySecret": {
-                        "name": "storage-credentials",
-                        "key": "access-key"
-                    },
-                    "secretKeySecret": {
-                        "name": "storage-credentials",
-                        "key": "secret-key"
-                    }
-                }
-            }
+            'default-v1-s3-artifact-repository': f"""
+            archiveLogs: true
+            s3:
+                bucket: {self.workflow_config.namespace}
+                endpoint: {self.workflow_config.storage_credentials.url}
+                insecure: true
+                accessKeySecret:
+                    name: storage-credentials
+                    key: access-key
+                secretKeySecret:
+                    name: storage-credentials
+                    key: secret-key
+            """
         }
 
         # Create ConfigMap object
