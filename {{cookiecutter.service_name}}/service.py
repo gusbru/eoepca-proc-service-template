@@ -154,7 +154,7 @@ class ArgoWorkflow:
 
         # Create ConfigMap
         self.v1.create_namespaced_config_map(
-            namespace="default",
+            namespace=self.job_namespace,
             body=config_map
         )
 
