@@ -67,7 +67,8 @@ class StorageCredentials:
 @dataclass
 class WorkflowConfig:
     namespace: str
-    workflow_name: Optional[str] = field(default=None)
+    workflow_template: Optional[str] = field(default=None)
+    workflow_id: Optional[str] = field(default=None)
     workflow_parameters: list[dict] = field(default_factory=list)
     storage_credentials: Optional[StorageCredentials] = field(default=None)
 
@@ -91,10 +92,10 @@ class ArgoWorkflow:
 
     def _create_job_namespace(self):
         # Create the namespace
-        if self.workflow_config.workflow_name is None:
-            raise ValueError("workflow_name is required")
+        if self.workflow_config.workflow_id is None:
+            raise ValueError("workflow_id is required")
 
-        self.job_namespace = f"{self.workflow_config.namespace}-{self.workflow_config.workflow_name}-{uuid4().hex[:6]}".lower()
+        self.job_namespace = f"{self.workflow_config.namespace}-{self.workflow_config.workflow_id}".lower()
         logger.info(f"Creating namespace: {self.job_namespace}")
         namespace_body = client.V1Namespace(
             metadata=client.V1ObjectMeta(name=self.job_namespace)
@@ -172,8 +173,8 @@ class ArgoWorkflow:
 
     def load_workflow_template(self):
         try:
-            if self.workflow_config.workflow_name is None:
-                raise ValueError("workflow_name is required")
+            if self.workflow_config.workflow_template is None:
+                raise ValueError("workflow_template is required")
 
             # Get the template
             self.workflow_manifest = self.custom_api.get_namespaced_custom_object(
@@ -181,7 +182,7 @@ class ArgoWorkflow:
                 version="v1alpha1",
                 namespace=self.workflow_config.namespace,
                 plural="workflowtemplates",
-                name=self.workflow_config.workflow_name,
+                name=self.workflow_config.workflow_template,
             )
 
         except Exception as e:
@@ -194,9 +195,9 @@ class ArgoWorkflow:
         try:
             # Create the template
             namespace = namespace or self.workflow_config.namespace
-            workflow_name = template_manifest["metadata"]["name"]
+            workflow_template_name = template_manifest["metadata"]["name"]
             logger.info(
-                f"Creating workflow template {workflow_name} on namespace {namespace}"
+                f"Creating workflow template {workflow_template_name} on namespace {namespace}"
             )
 
             self.custom_api.create_namespaced_custom_object(
@@ -206,21 +207,21 @@ class ArgoWorkflow:
                 plural="workflowtemplates",
                 body=template_manifest,
             )
-            logger.info(f"Workflow template {workflow_name} created successfully")
+            logger.info(f"Workflow template {workflow_template_name} created successfully")
         except Exception as e:
             logger.error(f"Error saving template: {e}")
             raise e
 
     # Submit the workflow
     def _submit_workflow(self):
-        if self.workflow_config.workflow_name is None:
-            raise ValueError("workflow_name is required")
+        if self.workflow_config.workflow_id is None:
+            raise ValueError("workflow_id is required")
 
         workflow_manifest = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
             "metadata": {
-                "name": f"{self.workflow_config.workflow_name}-".lower()
+                "name": f"{self.workflow_config.workflow_id}".lower()
             },
             "spec": {
                 "workflowTemplateRef": {
@@ -292,7 +293,7 @@ class ArgoWorkflow:
 
     def run(self):
         # Load the workflow template
-        logger.info(f"Loading workflow template: {self.workflow_config.workflow_name}")
+        logger.info(f"Loading workflow template: {self.workflow_config.workflow_template}")
         self.load_workflow_template()
 
         # Create the namespace, access key, and secret key
@@ -898,7 +899,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         # run workflow on Argo
         # from API
-        logger.info(f"preparing job on workspace {workspace} with process (workflow) {process_identifier}")
+        logger.info(f"preparing job on workspace {workspace} with process (workflow) {process_usid}")
 
         # TODO: get Storage credentials from workspace-api
         access_key = "eoepca"
@@ -907,7 +908,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         #############################################################
         workflow_config = WorkflowConfig(
             namespace=workspace,
-            workflow_name=process_identifier,
+            workflow_id=process_usid,
             workflow_parameters=[{ 'name': k, 'value': v } for k, v in input_parameters.items()],
             storage_credentials=StorageCredentials(
                 access_key=access_key, secret_key=secret_key
