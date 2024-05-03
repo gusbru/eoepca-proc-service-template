@@ -64,13 +64,13 @@ class StorageCredentials:
     url: str
     access_key: str
     secret_key: str
-    secure: bool = True
+    insecure: bool = True
 
     def __post_init__(self):
         parsed_url = urlparse(self.url)
         self.url = parsed_url.netloc
         storage_protocol = parsed_url.scheme
-        self.secure = storage_protocol == "https"
+        self.insecure = storage_protocol == "http"
 
 
 @dataclass
@@ -142,7 +142,7 @@ class ArgoWorkflow:
             s3:
                 bucket: {self.workflow_config.namespace}
                 endpoint: {self.workflow_config.storage_credentials.url}
-                insecure: true
+                insecure: {str(self.workflow_config.storage_credentials.insecure).lower()}
                 accessKeySecret:
                     name: storage-credentials
                     key: access-key
