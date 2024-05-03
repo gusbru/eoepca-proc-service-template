@@ -820,6 +820,7 @@ def parse_input_parameters(conf: dict[str, Any]):
     :param input_parameters: The input parameters from the request
     """
     input_parameters = conf.get("request", {}).get("jrequest", {})
+    input_parameters = json.loads(input_parameters)
 
     for key, value in input_parameters.items():
         if isinstance(value, dict) or isinstance(value, list):
