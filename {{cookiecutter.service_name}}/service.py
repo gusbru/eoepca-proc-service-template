@@ -219,7 +219,9 @@ class ArgoWorkflow:
         workflow_manifest = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": f"{self.workflow_config.workflow_name}-".lower()},
+            "metadata": {
+                "name": f"{self.workflow_config.workflow_name}-".lower()
+            },
             "spec": {
                 "workflowTemplateRef": {
                     "name": self.workflow_manifest["metadata"]["name"],
