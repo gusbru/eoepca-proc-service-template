@@ -132,7 +132,7 @@ class ArgoWorkflow:
             "default-v1-s3-artifact-repository": {
                 "archiveLogs": "true",
                 "s3": {
-                    "bucket": self.workflow_config,
+                    "bucket": self.workflow_config.namespace,
                     "endpoint": self.workflow_config.storage_credentials.url,
                     "insecure": "true",
                     "accessKeySecret": {
