@@ -60,6 +60,7 @@ import yaml
 
 @dataclass
 class StorageCredentials:
+    url: str
     access_key: str
     secret_key: str
 
@@ -115,6 +116,48 @@ class ArgoWorkflow:
             },
         )
         self.v1.create_namespaced_secret(namespace=self.job_namespace, body=secret_body)
+
+    def _create_artifact_repository_configmap(self):
+        logger.info(f"Creating artifact repository configmap for namespace: {self.job_namespace}")
+        # Define ConfigMap metadata
+        metadata = client.V1ObjectMeta(
+            name="artifact-repository",
+            annotations={
+                "workflows.argoproj.io/default-artifact-repository": "default-v1-s3-artifact-repository"
+            }
+        )
+
+        # Define ConfigMap data
+        data = {
+            "default-v1-s3-artifact-repository": f"""
+            archiveLogs: true
+            s3:
+                bucket: {self.workflow_config}
+                endpoint: {self.workflow_config.storage_credentials.url}
+                insecure: true
+                accessKeySecret:
+                    name: storage-credentials
+                    key: access-key
+                secretKeySecret:
+                    name: storage-credentials
+                    key: secret-key
+            """
+        }
+
+        # Create ConfigMap object
+        config_map = client.V1ConfigMap(
+            api_version="v1",
+            kind="ConfigMap",
+            metadata=metadata,
+            data=data
+        )
+
+        # Create ConfigMap
+        api_instance = client.CoreV1Api()
+        api_instance.create_namespaced_config_map(
+            namespace="default",
+            body=config_map
+        )
 
     # Create the Role
     def _create_job_role(self):
@@ -300,6 +343,7 @@ class ArgoWorkflow:
         logger.info("Creating namespace, roles, and storage secrets")
         self._create_job_namespace()
         self._create_job_secret()
+        self._create_artifact_repository_configmap()
         self._create_job_role()
         self._create_job_role_binding()
 
@@ -316,6 +360,7 @@ class ArgoWorkflow:
         logger.info("Creating namespace, roles, and storage secrets")
         self._create_job_namespace()
         self._create_job_secret()
+        self._create_artifact_repository_configmap()
         self._create_job_role()
         self._create_job_role_binding()
 
@@ -879,7 +924,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         working_dir = os.path.join(tmp_path, f"{process_identifier}-{process_usid}")
         input_parameters = parse_input_parameters(conf)
 
-        logger.info("Basic Information")
+        logger.info("************** Basic Information **********************")
         logger.info(f"tmp_path = {tmp_path}")
         logger.info(f"process_identifier = {process_identifier}")
         logger.info(f"process_usid = {process_usid}")
@@ -901,7 +946,8 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         # from API
         logger.info(f"preparing job on workspace {workspace} with process (workflow) {process_usid}")
 
-        # TODO: get Storage credentials from workspace-api
+        # TODO: get Storage credentials from workspace-api. Use the default storage credentials for the global workspace
+        storage_url = "https://minio.mkube.dec.earthdaily.com"
         access_key = "eoepca"
         secret_key = "changeme"
 
@@ -911,7 +957,9 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             workflow_id=process_usid,
             workflow_parameters=[{ 'name': k, 'value': v } for k, v in input_parameters.items()],
             storage_credentials=StorageCredentials(
-                access_key=access_key, secret_key=secret_key
+                url=storage_url,
+                access_key=access_key, 
+                secret_key=secret_key
             ),
         )
 
