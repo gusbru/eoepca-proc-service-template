@@ -1,5 +1,6 @@
 # see https://zoo-project.github.io/workshops/2014/first_service.html#f1
 import pathlib
+from urllib.parse import urlparse
 from uuid import uuid4
 
 try:
@@ -63,6 +64,13 @@ class StorageCredentials:
     url: str
     access_key: str
     secret_key: str
+    secure: bool = True
+
+    def __post_init__(self):
+        parsed_url = urlparse(self.url)
+        self.url = parsed_url.netloc
+        storage_protocol = parsed_url.scheme
+        self.secure = storage_protocol == "https"
 
 
 @dataclass
