@@ -979,7 +979,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         # if there is a collection_id on the input, add the processed item into that collection
 
         # TODO: just for testing
-        workspace_api_endpoint = "workspace-api.rm:8080"
+        workspace_api_endpoint = "http://workspace-api.rm:8080"
         stac_catalog = {"type": "stac-item", "url": f"s3://{workspace}/processing-results/{process_usid}"}
         logger.info(f"registering stac_catalog = {stac_catalog}")
         headers = {
