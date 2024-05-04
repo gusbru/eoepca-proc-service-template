@@ -958,7 +958,29 @@ def get_credentials(workspace: str) -> WorkspaceCredentials:
     logger.info("Getting credentials")
     response = requests.get(f"http://workspace-api.rm:8080/workspaces/{workspace}")
     response.raise_for_status()
-    return WorkspaceCredentials(**response.json())
+
+    response_api = response.json()
+
+    endpoints = [Endpoint(id=e['id'], url=e['url']) for e in response_api['endpoints']]
+    storage = StorageCredentials(
+        access=response_api['storage']['credentials']['access'],
+        bucketname=response_api['storage']['credentials']['bucketname'],
+        projectid=response_api['storage']['credentials']['projectid'],
+        secret=response_api['storage']['credentials']['secret'],
+        endpoint=response_api['storage']['credentials']['endpoint'],
+        region=response_api['storage']['credentials']['region']
+    )
+    container_registry = ContainerRegistry(
+        username=response_api['container_registry']['username'],
+        password=response_api['container_registry']['password']
+    )
+
+    return WorkspaceCredentials(
+        status=response_api['status'],
+        endpoints=endpoints,
+        storage=storage,
+        container_registry=container_registry
+    )
 
 def load_workflow_template_from_file():
     logger.info("open file: app-package.cwl")
@@ -1023,7 +1045,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             namespace=job_information.workspace,
             workflow_id=job_information.process_usid,
             workflow_parameters=job_information.input_parameters,
-            storage_credentials=workspace_credentials.storage.get("credentials"),
+            storage_credentials=workspace_credentials.storage.credentials,
         )
 
         # run the workflow
