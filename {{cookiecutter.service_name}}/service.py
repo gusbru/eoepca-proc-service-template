@@ -169,24 +169,28 @@ class ArgoWorkflow:
     # Create the Role
     def _create_job_role(self):
         logger.info(f"Creating role for namespace: {self.job_namespace}")
+
+        # artifactGC role
+        artifact_gc_policy_rule = client.V1PolicyRule(
+            api_groups=["argoproj.io"],
+            resources=["workflows", "workflows/finalizers", "workflowartifactgctasks", "workflowartifactgctasks/status"],
+            verbs=["get", "list", "watch", "create", "update", "patch", "delete"],
+        )
+
+        pods_policy_rule = client.V1PolicyRule(
+            api_groups=[""],
+            resources=["pods"],
+            verbs=["get", "list", "watch", "create", "update", "patch", "delete"],
+        )
+
         role_body = client.V1Role(
             metadata=client.V1ObjectMeta(name="pod-patcher"),
             rules=[
-                client.V1PolicyRule(
-                    api_groups=[""],
-                    resources=["pods"],
-                    verbs=[
-                        "get",
-                        "list",
-                        "watch",
-                        "create",
-                        "update",
-                        "patch",
-                        "delete",
-                    ],
-                )
+                pods_policy_rule,
+                artifact_gc_policy_rule
             ],
         )
+        
         self.rbac_v1.create_namespaced_role(
             namespace=self.job_namespace, body=role_body
         )
