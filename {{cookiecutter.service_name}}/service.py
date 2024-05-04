@@ -884,6 +884,105 @@ def parse_input_parameters(conf: dict[str, Any]):
 
     return input_parameters
 
+@dataclass
+class StorageCredentials:
+    access: str
+    bucketname: str
+    projectid: str
+    secret: str
+    endpoint: str
+    region: str
+
+@dataclass
+class Endpoint:
+    id: str
+    url: str
+
+@dataclass
+class Storage:
+    credentials: StorageCredentials
+
+@dataclass
+class ContainerRegistry:
+    username: str
+    password: str
+
+@dataclass
+class WorkspaceCredentials:
+    status: str
+    endpoints: list[Endpoint]
+    storage: Storage
+    container_registry: ContainerRegistry
+
+
+class JobInformation:
+    def __init__(self, conf: dict[str, Any]):
+        self.tmp_path = conf["main"]["tmpPath"]
+        self.process_identifier = conf["lenv"]["Identifier"]
+        self.process_usid = conf["lenv"]["usid"]
+        self.namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
+        self.workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
+        self.workspace = f"{workspace_prefix}-{namespace}"
+        self.working_dir = os.path.join(tmp_path, f"{process_identifier}-{process_usid}")
+        self._input_parameters = parse_input_parameters(conf)
+
+    def __repr__(self) -> str:
+        return f"""
+        ************** Job Information **********************
+        tmp_path = {self.tmp_path}
+        process_identifier = {self.process_identifier}
+        process_usid = {self.process_usid}
+        workspace = {self.workspace}
+        working_dir = {self.working_dir}
+        input_parameters = {json.dumps(self._input_parameters, indent=22)}
+        *****************************************************
+        """
+    
+    @property
+    def input_parameters(self):
+        return [{ 'name': k, 'value': v } for k, v in self._input_parameters.items()]
+
+
+def get_credentials(workspace: str) -> WorkspaceCredentials:
+    logger.info("Getting credentials")
+    response = requests.get(f"http://workspace-api.rm:8080/workspaces/{workspace}")
+    response.raise_for_status()
+    return WorkspaceCredentials(**response.json())
+
+def load_workflow_template_from_file():
+    logger.info("open file: app-package.cwl")
+    with open(
+        os.path.join(
+            pathlib.Path(os.path.realpath(__file__)).parent.absolute(),
+            "app-package.cwl",
+        ),
+        "r",
+    ) as stream:
+        argo_template = yaml.safe_load(stream)
+    
+    return argo_template
+
+def register_catalog(job_information: JobInformation):
+    os.environ.pop("HTTP_PROXY", None)
+    workspace_api_endpoint = "http://workspace-api.rm:8080"
+    stac_catalog = {"type": "stac-item", "url": f"s3://{job_information.workspace}/processing-results/{job_information.process_usid}"}
+    logger.info(f"registering stac_catalog = {stac_catalog}")
+    headers = {
+        "Content-Type": "application/json",
+    }
+    r = requests.post(f"{workspace_api_endpoint}/workspaces/{job_information.workspace}/register", json=stac_catalog, headers=headers)
+    r.raise_for_status()
+    logger.info(f"Register processing results response: {r.status_code}")
+
+
+def prepare_work_directory(job_information: JobInformation):
+    os.makedirs(
+        job_information.working_dir,
+        mode=0o777,
+        exist_ok=True,
+    )
+    os.chdir(job_information.working_dir)
+
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
     try:
@@ -891,84 +990,29 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         logger.info(f"inputs = {json.dumps(inputs, indent=4)}")
         logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
 
-        logger.info("open file: app-package.cwl")
-        with open(
-            os.path.join(
-                pathlib.Path(os.path.realpath(__file__)).parent.absolute(),
-                "app-package.cwl",
-            ),
-            "r",
-        ) as stream:
-            argo_template = yaml.safe_load(stream)
+        argo_template = load_workflow_template_from_file()
 
-        # logger.info(f"Creating custom execution_handler with conf")
-        # execution_handler = EoepcaCalrissianRunnerExecutionHandler(conf=conf, inputs=inputs)
+        job_information = JobInformation(conf)
+        logger.info(job_information)
 
-        # logger.info(f"conf (with modification done by EoepcaCalrissianRunnerExecutionHandler):\n{json.dumps(conf, indent=4)}")
-
-        # logger.info("Creating ZooCalrissianRunner runner")
-        # # #####################################################################################################
-        # # TODO: image_pull_secrets are handle by get_secrets method on the EoepcaCalrissianRunnerExecutionHandler
-        # # #####################################################################################################
-        # runner = ZooCalrissianRunner(
-        #     cwl=cwl,
-        #     conf=conf,
-        #     inputs=inputs,
-        #     outputs=outputs,
-        #     execution_handler=execution_handler,
-        # )
-        # DEBUG
-        # runner.monitor_interval = 1
-
-        # we are changing the working directory to store the outputs
-        # in a directory dedicated to this execution
-        # working_dir = os.path.join(conf["main"]["tmpPath"], runner.get_namespace_name())
-        tmp_path = conf["main"]["tmpPath"]
-        process_identifier = conf["lenv"]["Identifier"]
-        process_usid = conf["lenv"]["usid"]
-        namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
-        workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
-        workspace = f"{workspace_prefix}-{namespace}"
-        working_dir = os.path.join(tmp_path, f"{process_identifier}-{process_usid}")
-        input_parameters = parse_input_parameters(conf)
-
-        logger.info("************** Basic Information **********************")
-        logger.info(f"tmp_path = {tmp_path}")
-        logger.info(f"process_identifier = {process_identifier}")
-        logger.info(f"process_usid = {process_usid}")
-        logger.info(f"workspace = {workspace}")
-        logger.info(f"working_dir = {working_dir}")
-        logger.info(f"input_parameters = {json.dumps(input_parameters, indent=4)}")
-
-        
-        os.makedirs(
-            working_dir,
-            mode=0o777,
-            exist_ok=True,
-        )
-        os.chdir(working_dir)
+        prepare_work_directory(job_information)
 
         logger.info("Starting execute runner")
 
         # run workflow on Argo
         # from API
-        logger.info(f"preparing job on workspace {workspace} with process (workflow) {process_usid}")
+        logger.info(f"preparing job on workspace {job_information.workspace} with process (workflow) {job_information.process_usid}")
 
-        # TODO: get Storage credentials from workspace-api. Use the default storage credentials for the global workspace
-        storage_url = "https://minio.mkube.dec.earthdaily.com"
-        access_key = "eoepca"
-        secret_key = "changeme"
+        # get Storage credentials from workspace-api. 
+        # TODO: Use the default storage credentials for the global workspace
+        workspace_credentials = get_credentials(job_information.workspace)
 
         #############################################################
         workflow_config = WorkflowConfig(
-            namespace=workspace,
-            workflow_id=process_usid,
-            workflow_parameters=[{ 'name': k, 'value': v } for k, v in input_parameters.items()],
-            storage_credentials=StorageCredentials(
-                url=storage_url,
-                access_key=access_key, 
-                secret_key=secret_key
-            ),
+            namespace=job_information.workspace,
+            workflow_id=job_information.process_usid,
+            workflow_parameters=job_information.input_parameters,
+            storage_credentials=workspace_credentials.storage.credentials,
         )
 
         # run the workflow
@@ -978,17 +1022,9 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         # if there is a collection_id on the input, add the processed item into that collection
 
-        # TODO: just for testing
-        os.environ.pop("HTTP_PROXY", None)
-        workspace_api_endpoint = "http://workspace-api.rm:8080"
-        stac_catalog = {"type": "stac-item", "url": f"s3://{workspace}/processing-results/{process_usid}"}
-        logger.info(f"registering stac_catalog = {stac_catalog}")
-        headers = {
-            "Content-Type": "application/json",
-        }
-        r = requests.post(f"{workspace_api_endpoint}/workspaces/{workspace}/register", json=stac_catalog, headers=headers)
-        r.raise_for_status()
-        logger.info(f"Register processing results response: {r.status_code}")
+        # Register Catalog
+        # TODO: consider more use cases
+        register_catalog(job_information)
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
             # TODO: handle the outputs
