@@ -946,7 +946,7 @@ class JobInformation:
         process_usid = {self.process_usid}
         workspace = {self.workspace}
         working_dir = {self.working_dir}
-        input_parameters = {json.dumps(self._input_parameters, indent=22)}
+        input_parameters = {json.dumps(self.input_parameters, indent=2)}
         *****************************************************
         """
     
