@@ -912,7 +912,7 @@ class JobInformation:
 
     @property
     def input_parameters(self):
-        _inp_params = self._parse_input_parameters(self.conf)
+        _inp_params = self._parse_input_parameters(self._conf)
         return [{ 'name': k, 'value': v } for k, v in _inp_params.items()]
     
     @property
