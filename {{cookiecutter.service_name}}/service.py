@@ -314,25 +314,25 @@ class ArgoWorkflow:
         phase_data = None
         for data in workflow_stream:
             event_data = data["type"]
-            workflow_data = data["object"]["metadata"]["name"]
+            workflow_name = data["object"]["metadata"]["name"]
             phase_data = data["object"].get("status", {}).get("phase")
             progress_data = data["object"].get("status", {}).get("progress")
 
             # Stop watching if the workflow has reached a terminal state
             if phase_data in ["Succeeded", "Failed", "Error"]:
                 logger.info(
-                    f"Workflow {workflow_data} has reached a terminal state: {phase_data}"
+                    f"Workflow {workflow_name} has reached a terminal state: {phase_data}"
                 )
-                print(f"Workflow {workflow_data} has reached a terminal state: {phase_data}")
+                print(f"Workflow {workflow_name} has reached a terminal state: {phase_data}")
                 # need to save this on the logs
                 logger.info(json.dumps(data, indent=2))
                 w.stop()
 
             # print(data)
             logger.info(
-                f"Event: {event_data}, Workflow: {workflow_data}, Phase: {phase_data}, Progress: {progress_data}"
+                f"Event: {event_data}, Workflow: {workflow_name}, Phase: {phase_data}, Progress: {progress_data}"
             )
-            print(f"Event: {event_data}, Workflow: {workflow_data}, Phase: {phase_data}, Progress: {progress_data}")
+            print(f"Event: {event_data}, Workflow: {workflow_name}, Phase: {phase_data}, Progress: {progress_data}")
 
         logger.info("Workflow monitoring complete")
         
@@ -612,6 +612,7 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             logger.info("Setting custom STAC IO class")
             StacIO.set_default(CustomStacIO)
 
+            # output["StacCatalogUri"] = s3://ws-bob/processing-results/19b85634-080a-11ef-89d1-0242ac11002f/catalog.json
             logger.info(f"Read catalog => STAC Catalog URI: {output['StacCatalogUri']}")
             try:
                 s3_path = output["StacCatalogUri"]
@@ -974,6 +975,19 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         logger.info("Running workflow")
         argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
         exit_status = argo_workflow.run_workflow_from_file(argo_template)
+
+        # if there is a collection_id on the input, add the processed item into that collection
+
+        # TODO: just for testing
+        workspace_api_endpoint = "workspace-api.rm:8080"
+        stac_catalog = {"type": "stac-item", "url": f"s3://{workspace}/processing-results/{process_usid}"}
+        logger.info(f"registering stac_catalog = {stac_catalog}")
+        headers = {
+            "Content-Type": "application/json",
+        }
+        r = requests.post(f"{workspace_api_endpoint}/workspaces/{workspace}/register", json=stac_catalog, headers=headers)
+        r.raise_for_status()
+        logger.info(f"Register processing results response: {r.status_code}")
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
             # TODO: handle the outputs
