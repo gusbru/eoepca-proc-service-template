@@ -190,7 +190,7 @@ class ArgoWorkflow:
                 artifact_gc_policy_rule
             ],
         )
-        
+
         self.rbac_v1.create_namespaced_role(
             namespace=self.job_namespace, body=role_body
         )
@@ -889,10 +889,6 @@ class Endpoint:
     url: str
 
 @dataclass
-class Storage:
-    credentials: StorageCredentials
-
-@dataclass
 class ContainerRegistry:
     username: str
     password: str
@@ -901,7 +897,7 @@ class ContainerRegistry:
 class WorkspaceCredentials:
     status: str
     endpoints: list[Endpoint]
-    storage: Storage
+    storage: StorageCredentials
     container_registry: ContainerRegistry
 
 
@@ -1049,7 +1045,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             namespace=job_information.workspace,
             workflow_id=job_information.process_usid,
             workflow_parameters=job_information.input_parameters,
-            storage_credentials=workspace_credentials.storage.credentials,
+            storage_credentials=workspace_credentials.storage,
         )
 
         # run the workflow
