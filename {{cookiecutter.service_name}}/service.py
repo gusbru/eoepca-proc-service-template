@@ -923,7 +923,7 @@ class JobInformation:
     def working_dir(self):
         return os.path.join(self.tmp_path, f"{self.process_identifier}-{self.process_usid}")
 
-    def _parse_input_parameters(conf: dict[str, Any]):
+    def _parse_input_parameters(self, conf: dict[str, Any]):
         """
         Parse the input parameters from the request
 
