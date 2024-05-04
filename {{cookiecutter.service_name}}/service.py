@@ -954,6 +954,7 @@ class JobInformation:
 
 
 def get_credentials(workspace: str) -> WorkspaceCredentials:
+    os.environ.pop("HTTP_PROXY", None)
     logger.info("Getting credentials")
     response = requests.get(f"http://workspace-api.rm:8080/workspaces/{workspace}")
     response.raise_for_status()
