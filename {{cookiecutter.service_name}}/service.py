@@ -60,7 +60,7 @@ from kubernetes import client, config, watch
 import yaml
 
 @dataclass
-class StorageCredentials:
+class WorkflowStorageCredentials:
     url: str
     access_key: str
     secret_key: str
@@ -79,7 +79,7 @@ class WorkflowConfig:
     workflow_template: Optional[str] = field(default=None)
     workflow_id: Optional[str] = field(default=None)
     workflow_parameters: list[dict] = field(default_factory=list)
-    storage_credentials: Optional[StorageCredentials] = field(default=None)
+    storage_credentials: Optional[WorkflowStorageCredentials] = field(default=None)
 
 
 class ArgoWorkflow:
@@ -1045,7 +1045,11 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             namespace=job_information.workspace,
             workflow_id=job_information.process_usid,
             workflow_parameters=job_information.input_parameters,
-            storage_credentials=workspace_credentials.storage,
+            storage_credentials=WorkflowStorageCredentials(
+                url=workspace_credentials.storage.endpoint,
+                access_key=workspace_credentials.storage.access,
+                secret_key=workspace_credentials.storage.secret,
+            ),
         )
 
         # run the workflow
