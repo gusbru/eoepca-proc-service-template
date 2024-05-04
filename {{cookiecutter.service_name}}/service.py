@@ -1023,7 +1023,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             namespace=job_information.workspace,
             workflow_id=job_information.process_usid,
             workflow_parameters=job_information.input_parameters,
-            storage_credentials=workspace_credentials.storage.credentials,
+            storage_credentials=workspace_credentials.storage.get("credentials"),
         )
 
         # run the workflow
