@@ -869,20 +869,6 @@ class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
             logger.error(traceback.format_exc())
             raise(e)
 
-def parse_input_parameters(conf: dict[str, Any]):
-    """
-    Parse the input parameters from the request
-
-    :param input_parameters: The input parameters from the request
-    """
-    input_parameters = conf.get("request", {}).get("jrequest", {})
-    input_parameters = json.loads(input_parameters)
-
-    for key, value in input_parameters.items():
-        if isinstance(value, dict) or isinstance(value, list):
-            input_parameters[key] = json.dumps(value)
-
-    return input_parameters
 
 @dataclass
 class StorageCredentials:
@@ -917,15 +903,41 @@ class WorkspaceCredentials:
 
 class JobInformation:
     def __init__(self, conf: dict[str, Any]):
+        self._conf = conf
         self.tmp_path = conf["main"]["tmpPath"]
         self.process_identifier = conf["lenv"]["Identifier"]
         self.process_usid = conf["lenv"]["usid"]
         self.namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
         self.workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
-        self.workspace = f"{workspace_prefix}-{namespace}"
-        self.working_dir = os.path.join(tmp_path, f"{process_identifier}-{process_usid}")
-        self._input_parameters = parse_input_parameters(conf)
 
+    @property
+    def input_parameters(self):
+        _inp_params = self._parse_input_parameters(self.conf)
+        return [{ 'name': k, 'value': v } for k, v in _inp_params.items()]
+    
+    @property
+    def workspace(self):
+        return f"{self.workspace_prefix}-{self.namespace}"
+    
+    @property
+    def working_dir(self):
+        return os.path.join(self.tmp_path, f"{self.process_identifier}-{self.process_usid}")
+
+    def _parse_input_parameters(conf: dict[str, Any]):
+        """
+        Parse the input parameters from the request
+
+        :param input_parameters: The input parameters from the request
+        """
+        input_parameters = conf.get("request", {}).get("jrequest", {})
+        input_parameters = json.loads(input_parameters)
+
+        for key, value in input_parameters.items():
+            if isinstance(value, dict) or isinstance(value, list):
+                input_parameters[key] = json.dumps(value)
+
+        return input_parameters
+    
     def __repr__(self) -> str:
         return f"""
         ************** Job Information **********************
@@ -938,9 +950,7 @@ class JobInformation:
         *****************************************************
         """
     
-    @property
-    def input_parameters(self):
-        return [{ 'name': k, 'value': v } for k, v in self._input_parameters.items()]
+    
 
 
 def get_credentials(workspace: str) -> WorkspaceCredentials:
