@@ -932,7 +932,7 @@ class JobInformation:
         input_parameters = conf.get("request", {}).get("jrequest", {})
         input_parameters = json.loads(input_parameters)
 
-        for key, value in input_parameters.items():
+        for key, value in input_parameters.get("inputs", {}).items():
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
 
