@@ -927,10 +927,10 @@ class JobInformation:
         """
         input_parameters = self.conf.get("request", {}).get("jrequest", {})
         input_parameters = json.loads(input_parameters)
-        print(f"input_parameters from request: {input_parameters}")
+        logger.info(f"input_parameters from request: {input_parameters}")
 
         for key, value in input_parameters.get("inputs", {}).items():
-            print(f"key = {key}, value = {value}")
+            logger.info(f"key = {key}, value = {value}")
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
 
