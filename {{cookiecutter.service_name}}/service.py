@@ -931,8 +931,10 @@ class JobInformation:
         """
         input_parameters = conf.get("request", {}).get("jrequest", {})
         input_parameters = json.loads(input_parameters)
+        print(f"input_parameters from request: {input_parameters}")
 
         for key, value in input_parameters.get("inputs", {}).items():
+            print(f"key = {key}, value = {value}")
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
 
@@ -1058,12 +1060,11 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         exit_status = argo_workflow.run_workflow_from_file(argo_template)
 
         # if there is a collection_id on the input, add the processed item into that collection
-
-        # Register Catalog
-        # TODO: consider more use cases
-        register_catalog(job_information)
-
         if exit_status == zoo.SERVICE_SUCCEEDED:
+            # Register Catalog
+            # TODO: consider more use cases
+            register_catalog(job_information)
+            
             # TODO: handle the outputs
             # logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
             # outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
@@ -1071,6 +1072,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             return zoo.SERVICE_SUCCEEDED
 
         else:
+            # TODO: handle the outputs
             error_message = zoo._("Execution failed")
             logger.error(f"Execution failed: {error_message}")
             conf["lenv"]["message"] = error_message
