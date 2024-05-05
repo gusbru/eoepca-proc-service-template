@@ -909,12 +909,8 @@ class JobInformation:
         self.process_usid = conf["lenv"]["usid"]
         self.namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
         self.workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
+        self.input_parameters = self._parse_input_parameters()
 
-    @property
-    def input_parameters(self):
-        _inp_params = self._parse_input_parameters(self._conf)
-        return [{ 'name': k, 'value': v } for k, v in _inp_params.items()]
-    
     @property
     def workspace(self):
         return f"{self.workspace_prefix}-{self.namespace}"
@@ -938,7 +934,7 @@ class JobInformation:
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
 
-        return input_parameters
+        self.input_parameters = [{ 'name': k, 'value': v } for k, v in input_parameters.items()]
     
     def __repr__(self) -> str:
         return f"""
