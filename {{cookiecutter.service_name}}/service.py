@@ -934,7 +934,7 @@ class JobInformation:
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
 
-        self.input_parameters = [{ 'name': k, 'value': v } for k, v in input_parameters.items()]
+        return [{ 'name': k, 'value': v } for k, v in input_parameters.items()]
     
     def __repr__(self) -> str:
         return f"""
