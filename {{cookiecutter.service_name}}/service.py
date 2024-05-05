@@ -903,7 +903,7 @@ class WorkspaceCredentials:
 
 class JobInformation:
     def __init__(self, conf: dict[str, Any]):
-        self._conf = conf
+        self.conf = conf
         self.tmp_path = conf["main"]["tmpPath"]
         self.process_identifier = conf["lenv"]["Identifier"]
         self.process_usid = conf["lenv"]["usid"]
@@ -919,13 +919,13 @@ class JobInformation:
     def working_dir(self):
         return os.path.join(self.tmp_path, f"{self.process_identifier}-{self.process_usid}")
 
-    def _parse_input_parameters(self, conf: dict[str, Any]):
+    def _parse_input_parameters(self):
         """
         Parse the input parameters from the request
 
         :param input_parameters: The input parameters from the request
         """
-        input_parameters = conf.get("request", {}).get("jrequest", {})
+        input_parameters = self.conf.get("request", {}).get("jrequest", {})
         input_parameters = json.loads(input_parameters)
         print(f"input_parameters from request: {input_parameters}")
 
