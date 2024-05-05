@@ -925,11 +925,12 @@ class JobInformation:
 
         :param input_parameters: The input parameters from the request
         """
-        input_parameters = self.conf.get("request", {}).get("jrequest", {})
-        input_parameters = json.loads(input_parameters)
-        logger.info(f"input_parameters from request: {input_parameters}")
-
-        for key, value in input_parameters.get("inputs", {}).items():
+        json_request = self.conf.get("request", {}).get("jrequest", {})
+        json_request = json.loads(json_request)
+        logger.info(f"json_request from request: {json_request}")
+        
+        input_parameters = {}
+        for key, value in json_request.get("inputs", {}).items():
             logger.info(f"key = {key}, value = {value}")
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
