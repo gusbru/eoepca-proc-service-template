@@ -934,6 +934,8 @@ class JobInformation:
             logger.info(f"key = {key}, value = {value}")
             if isinstance(value, dict) or isinstance(value, list):
                 input_parameters[key] = json.dumps(value)
+            else:
+                input_parameters[key] = value
 
         return [{ 'name': k, 'value': v } for k, v in input_parameters.items()]
     
