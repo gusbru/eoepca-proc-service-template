@@ -426,9 +426,9 @@ class ArgoWorkflow:
                         for j in range(len(keys)):
                             keys[j] = keys[j] + "_" + str(i)
                     for j in range(len(keys)):
-                        self.conf["service_logs"][keys[j]] = servicesLogs[i][okeys[j]]
+                        conf["service_logs"][keys[j]] = servicesLogs[i][okeys[j]]
 
-                self.conf["service_logs"]["length"] = str(len(servicesLogs))
+                conf["service_logs"]["length"] = str(len(servicesLogs))
                 
 
         except Exception as e:
@@ -1139,7 +1139,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             exit_status = zoo.SERVICE_FAILED
         
         # Clean up the namespace
-        argo_workflow.delete_workflow()
+        # argo_workflow.delete_workflow()
 
         return exit_status
 
