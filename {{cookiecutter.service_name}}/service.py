@@ -323,6 +323,7 @@ class ArgoWorkflow:
         )
 
         phase_data = None
+        self._update_status(10, "Workflow started")
         for data in workflow_stream:
             event_data = data["type"]
             workflow_name = data["object"]["metadata"]["name"]
@@ -424,6 +425,9 @@ class ArgoWorkflow:
                     "title": f"Process execution log {os.path.basename(log_filename)}",
                     "rel": "related",
                 }
+
+                if not self.conf.get("service_logs"):
+                    self.conf["service_logs"] = {}
 
                 for key in servicesLogs.keys():
                     self.conf["service_logs"][key] = servicesLogs[key]
@@ -1077,8 +1081,7 @@ def prepare_work_directory(job_information: JobInformation):
     )
     os.chdir(job_information.working_dir)
 
-
-def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
+def execute_runner(conf, inputs, outputs):
     try:
         logger.info(f"conf = {json.dumps(conf, indent=4)}")
         logger.info(f"inputs = {json.dumps(inputs, indent=4)}")
@@ -1149,3 +1152,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         logger.error(stack)
         conf["lenv"]["message"] = zoo._(f"Exception during execution...\n{stack}\n")
         return zoo.SERVICE_FAILED
+
+
+def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
+    return execute_runner(conf, inputs, outputs)
