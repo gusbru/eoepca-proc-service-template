@@ -58,6 +58,11 @@ from uuid import uuid4
 from kubernetes import client, config, watch
 import yaml
 
+logger.info(f"os.environ.AWS_REGION = {os.environ.get('AWS_REGION')}")
+logger.info(f"os.environ.AWS_S3_ENDPOINT = {os.environ.get('AWS_S3_ENDPOINT')}")
+logger.info(f"os.environ.AWS_ACCESS_KEY_ID = {os.environ.get('AWS_ACCESS_KEY_ID')}")
+logger.info(f"os.environ.AWS_SECRET_ACCESS_KEY = {os.environ.get('AWS_SECRET_ACCESS_KEY')}")
+
 class CustomStacIO(DefaultStacIO):
     """Custom STAC IO class that uses boto3 to read from S3."""
 
@@ -530,20 +535,19 @@ class ArgoWorkflow:
             self.feature_collection = json.dumps(collection.to_dict())
 
             #
-            if self.conf is not None:
-                servicesLogs = {
-                    "url": os.path.join(self.conf['main']['tmpUrl'], f"{self.process_identifier}-{self.process_usid}", os.path.basename(log_filename)),
-                    "title": f"Process execution log {os.path.basename(log_filename)}",
-                    "rel": "related",
-                }
+            servicesLogs = {
+                "url": os.path.join(self.conf['main']['tmpUrl'], f"{self.process_identifier}-{self.process_usid}", os.path.basename(log_filename)),
+                "title": f"Process execution log {os.path.basename(log_filename)}",
+                "rel": "related",
+            }
 
-                if not self.conf.get("service_logs"):
-                    self.conf["service_logs"] = {}
+            if not self.conf.get("service_logs"):
+                self.conf["service_logs"] = {}
 
-                for key in servicesLogs.keys():
-                    self.conf["service_logs"][key] = servicesLogs[key]
+            for key in servicesLogs.keys():
+                self.conf["service_logs"][key] = servicesLogs[key]
 
-                self.conf["service_logs"]["length"] = "1"
+            self.conf["service_logs"]["length"] = "1"
                 
 
         except Exception as e:
@@ -1104,9 +1108,9 @@ def prepare_work_directory(job_information: JobInformation):
 
 def execute_runner(conf, inputs, outputs):
     try:
-        logger.info(f"conf = {json.dumps(conf, indent=4)}")
-        logger.info(f"inputs = {json.dumps(inputs, indent=4)}")
-        logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
+        # logger.info(f"conf = {json.dumps(conf, indent=4)}")
+        # logger.info(f"inputs = {json.dumps(inputs, indent=4)}")
+        # logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
 
         argo_template = load_workflow_template_from_file()
 
