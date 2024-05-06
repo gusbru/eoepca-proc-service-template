@@ -301,9 +301,9 @@ class ArgoWorkflow:
     def _update_status(self, progress: int, message: str = None) -> None:
         """updates the execution progress (%) and provides an optional message"""
         if message:
-            self.zoo_conf.conf["lenv"]["message"] = message
+            self.conf["lenv"]["message"] = message
 
-        zoo.update_status(self.zoo_conf.conf, progress)
+        zoo.update_status(self.conf, progress)
 
     # Monitor the workflow execution
     def monitor_workflow(self, workflow: dict):
