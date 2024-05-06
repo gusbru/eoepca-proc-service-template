@@ -58,6 +58,58 @@ from uuid import uuid4
 from kubernetes import client, config, watch
 import yaml
 
+
+class JobInformation:
+    def __init__(self, conf: dict[str, Any]):
+        self.conf = conf
+        self.tmp_path = conf["main"]["tmpPath"]
+        self.process_identifier = conf["lenv"]["Identifier"]
+        self.process_usid = conf["lenv"]["usid"]
+        self.namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
+        self.workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
+        self.input_parameters = self._parse_input_parameters()
+
+    @property
+    def workspace(self):
+        return f"{self.workspace_prefix}-{self.namespace}"
+    
+    @property
+    def working_dir(self):
+        return os.path.join(self.tmp_path, f"{self.process_identifier}-{self.process_usid}")
+
+    def _parse_input_parameters(self):
+        """
+        Parse the input parameters from the request
+
+        :param input_parameters: The input parameters from the request
+        """
+        json_request = self.conf.get("request", {}).get("jrequest", {})
+        json_request = json.loads(json_request)
+        logger.info(f"json_request from request: {json_request}")
+        
+        input_parameters = {}
+        for key, value in json_request.get("inputs", {}).items():
+            logger.info(f"key = {key}, value = {value}")
+            if isinstance(value, dict) or isinstance(value, list):
+                input_parameters[key] = json.dumps(value)
+            else:
+                input_parameters[key] = value
+
+        return [{ 'name': k, 'value': v } for k, v in input_parameters.items()]
+    
+    def __repr__(self) -> str:
+        return f"""
+        ************** Job Information **********************
+        tmp_path = {self.tmp_path}
+        process_identifier = {self.process_identifier}
+        process_usid = {self.process_usid}
+        workspace = {self.workspace}
+        working_dir = {self.working_dir}
+        input_parameters = {json.dumps(self.input_parameters, indent=2)}
+        *****************************************************
+        """
+
+
 @dataclass
 class WorkflowStorageCredentials:
     url: str
@@ -74,20 +126,28 @@ class WorkflowStorageCredentials:
 
 @dataclass
 class WorkflowConfig:
-    namespace: str
+    conf: dict
+    job_information: JobInformation
+    namespace: str = field(default=None)
     workflow_template: Optional[str] = field(default=None)
     workflow_id: Optional[str] = field(default=None)
     workflow_parameters: list[dict] = field(default_factory=list)
     storage_credentials: Optional[WorkflowStorageCredentials] = field(default=None)
 
+    def __post_init__(self):
+        self.namespace=self.job_information.workspace,
+        self.workflow_id=self.job_information.process_usid,
+        self.workflow_parameters=self.job_information.input_parameters,
+
 
 class ArgoWorkflow:
-    def __init__(self, workflow_config: WorkflowConfig, conf: dict):
+    def __init__(self, workflow_config: WorkflowConfig):
         self.workflow_config = workflow_config
-        self.conf = conf
+        self.conf = workflow_config.conf
         self.job_namespace: Optional[str] = None
         self.workflow_manifest = None
         self.feature_collection = json.dumps({}, indent=2)
+        self.job_information = workflow_config.job_information
 
         # Load the kube config from the default location
         logger.info("Loading kube config")
@@ -970,55 +1030,7 @@ class WorkspaceCredentials:
     container_registry: ContainerRegistry
 
 
-class JobInformation:
-    def __init__(self, conf: dict[str, Any]):
-        self.conf = conf
-        self.tmp_path = conf["main"]["tmpPath"]
-        self.process_identifier = conf["lenv"]["Identifier"]
-        self.process_usid = conf["lenv"]["usid"]
-        self.namespace = conf.get("zooServicesNamespace", {}).get("namespace", "")
-        self.workspace_prefix = conf.get("eoepca", {}).get("workspace_prefix", "ws")
-        self.input_parameters = self._parse_input_parameters()
 
-    @property
-    def workspace(self):
-        return f"{self.workspace_prefix}-{self.namespace}"
-    
-    @property
-    def working_dir(self):
-        return os.path.join(self.tmp_path, f"{self.process_identifier}-{self.process_usid}")
-
-    def _parse_input_parameters(self):
-        """
-        Parse the input parameters from the request
-
-        :param input_parameters: The input parameters from the request
-        """
-        json_request = self.conf.get("request", {}).get("jrequest", {})
-        json_request = json.loads(json_request)
-        logger.info(f"json_request from request: {json_request}")
-        
-        input_parameters = {}
-        for key, value in json_request.get("inputs", {}).items():
-            logger.info(f"key = {key}, value = {value}")
-            if isinstance(value, dict) or isinstance(value, list):
-                input_parameters[key] = json.dumps(value)
-            else:
-                input_parameters[key] = value
-
-        return [{ 'name': k, 'value': v } for k, v in input_parameters.items()]
-    
-    def __repr__(self) -> str:
-        return f"""
-        ************** Job Information **********************
-        tmp_path = {self.tmp_path}
-        process_identifier = {self.process_identifier}
-        process_usid = {self.process_usid}
-        workspace = {self.workspace}
-        working_dir = {self.working_dir}
-        input_parameters = {json.dumps(self.input_parameters, indent=2)}
-        *****************************************************
-        """
     
     
 
@@ -1111,9 +1123,8 @@ def execute_runner(conf, inputs, outputs):
 
         #############################################################
         workflow_config = WorkflowConfig(
-            namespace=job_information.workspace,
-            workflow_id=job_information.process_usid,
-            workflow_parameters=job_information.input_parameters,
+            conf=conf,
+            job_information=job_information,
             storage_credentials=WorkflowStorageCredentials(
                 url=workspace_credentials.storage.endpoint,
                 access_key=workspace_credentials.storage.access,
