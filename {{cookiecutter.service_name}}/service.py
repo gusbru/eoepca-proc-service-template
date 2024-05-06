@@ -1132,7 +1132,7 @@ def execute_runner(conf, inputs, outputs):
             register_catalog(job_information)
             
             logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
-            outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
+            # outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
             logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
 
         else:
