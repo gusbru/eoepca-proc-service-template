@@ -24,11 +24,6 @@ import json
 import os
 import sys
 from urllib.parse import urlparse
-
-print(f"python path = {sys.path}")
-print('getcwd:      ', os.getcwd())
-print('__file__:    ', __file__)
-
 import boto3  # noqa: F401
 import botocore
 import jwt
@@ -67,7 +62,6 @@ class CustomStacIO(DefaultStacIO):
         logger.info(f"AWS_REGION = {os.environ.get('AWS_REGION')}")
         logger.info(f"AWS_S3_ENDPOINT = {os.environ.get('AWS_S3_ENDPOINT')}")
         logger.info(f"AWS_ACCESS_KEY_ID = {os.environ.get('AWS_ACCESS_KEY_ID')}")
-        logger.info(f"AWS_SECRET_ACCESS_KEY = {os.environ.get('AWS_SECRET_ACCESS_KEY')}")
         self.session = botocore.session.Session()
         self.s3_client = self.session.create_client(
             service_name="s3",
@@ -538,7 +532,7 @@ class ArgoWorkflow:
 
             #
             servicesLogs = {
-                "url": os.path.join(self.conf['main']['tmpUrl'], f"{self.process_identifier}-{self.process_usid}", os.path.basename(log_filename)),
+                "url": os.path.join(self.conf['main']['tmpUrl'], f"{self.job_information.process_identifier}-{self.job_information.process_usid}", os.path.basename(log_filename)),
                 "title": f"Process execution log {os.path.basename(log_filename)}",
                 "rel": "related",
             }
