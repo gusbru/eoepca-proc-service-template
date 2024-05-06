@@ -135,9 +135,9 @@ class WorkflowConfig:
     storage_credentials: Optional[WorkflowStorageCredentials] = field(default=None)
 
     def __post_init__(self):
-        self.namespace=self.job_information.workspace,
-        self.workflow_id=self.job_information.process_usid,
-        self.workflow_parameters=self.job_information.input_parameters,
+        self.namespace = self.job_information.workspace
+        self.workflow_id = self.job_information.process_usid
+        self.workflow_parameters = self.job_information.input_parameters
 
 
 class ArgoWorkflow:
