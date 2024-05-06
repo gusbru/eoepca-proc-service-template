@@ -1134,7 +1134,7 @@ def execute_runner(conf, inputs, outputs):
 
         # run the workflow
         logger.info("Running workflow")
-        argo_workflow = ArgoWorkflow(workflow_config=workflow_config, conf=conf)
+        argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
         exit_status = argo_workflow.run_workflow_from_file(argo_template)
 
         # handle the outputs
