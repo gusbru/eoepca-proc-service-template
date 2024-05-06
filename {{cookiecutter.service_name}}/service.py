@@ -82,8 +82,9 @@ class WorkflowConfig:
 
 
 class ArgoWorkflow:
-    def __init__(self, workflow_config: WorkflowConfig):
+    def __init__(self, workflow_config: WorkflowConfig, conf: dict):
         self.workflow_config = workflow_config
+        self.conf = conf
         self.job_namespace: Optional[str] = None
         self.workflow_manifest = None
 
@@ -296,6 +297,13 @@ class ArgoWorkflow:
         )
 
         return workflow
+    
+    def _update_status(self, progress: int, message: str = None) -> None:
+        """updates the execution progress (%) and provides an optional message"""
+        if message:
+            self.zoo_conf.conf["lenv"]["message"] = message
+
+        zoo.update_status(self.zoo_conf.conf, progress)
 
     # Monitor the workflow execution
     def monitor_workflow(self, workflow: dict):
@@ -326,16 +334,16 @@ class ArgoWorkflow:
                 logger.info(
                     f"Workflow {workflow_name} has reached a terminal state: {phase_data}"
                 )
-                print(f"Workflow {workflow_name} has reached a terminal state: {phase_data}")
-                # need to save this on the logs
+
+                # need to save this on the logs?
                 logger.info(json.dumps(data, indent=2))
+                self._update_status(100, phase_data)
                 w.stop()
 
             # print(data)
             logger.info(
                 f"Event: {event_data}, Workflow: {workflow_name}, Phase: {phase_data}, Progress: {progress_data}"
             )
-            print(f"Event: {event_data}, Workflow: {workflow_name}, Phase: {phase_data}, Progress: {progress_data}")
 
         logger.info("Workflow monitoring complete")
         
@@ -381,7 +389,7 @@ class ArgoWorkflow:
         exit_status = self.monitor_workflow(workflow)
         return exit_status
     
-    def save_workflow_logs(self, log_filename="logs.txt", conf: Optional[dict] = None):
+    def save_workflow_logs(self, log_filename="logs.txt"):
         try:
             logger.info(f"Getting logs for workflow {self.workflow_config.workflow_id} in namespace {self.job_namespace}")
             # list pods for namespace
@@ -410,25 +418,17 @@ class ArgoWorkflow:
                 f.write(f"\n{'='*80}\n")
 
             #
-            if conf is not None:
-                servicesLogs = [
-                    {
-                        "url": os.path.join(conf['main']['tmpUrl'], self.job_namespace, os.path.basename(log_filename)),
-                        "title": f"Process execution log {os.path.basename(log_filename)}",
-                        "rel": "related",
-                    }
-                ]
-                
-                for i in range(len(servicesLogs)):
-                    okeys = ["url", "title", "rel"]
-                    keys = ["url", "title", "rel"]
-                    if i > 0:
-                        for j in range(len(keys)):
-                            keys[j] = keys[j] + "_" + str(i)
-                    for j in range(len(keys)):
-                        conf["service_logs"][keys[j]] = servicesLogs[i][okeys[j]]
+            if self.conf is not None:
+                servicesLogs = {
+                    "url": os.path.join(self.conf['main']['tmpUrl'], self.job_namespace, os.path.basename(log_filename)),
+                    "title": f"Process execution log {os.path.basename(log_filename)}",
+                    "rel": "related",
+                }
 
-                conf["service_logs"]["length"] = str(len(servicesLogs))
+                for key in servicesLogs.keys():
+                    self.conf["service_logs"][key] = servicesLogs[key]
+
+                self.conf["service_logs"]["length"] = "1"
                 
 
         except Exception as e:
@@ -1115,11 +1115,11 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
 
         # run the workflow
         logger.info("Running workflow")
-        argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
+        argo_workflow = ArgoWorkflow(workflow_config=workflow_config, conf=conf)
         exit_status = argo_workflow.run_workflow_from_file(argo_template)
 
         # handle the outputs
-        argo_workflow.save_workflow_logs(conf=conf)
+        argo_workflow.save_workflow_logs()
 
         # if there is a collection_id on the input, add the processed item into that collection
         if exit_status == zoo.SERVICE_SUCCEEDED:
