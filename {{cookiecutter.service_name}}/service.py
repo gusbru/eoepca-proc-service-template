@@ -383,14 +383,15 @@ class ArgoWorkflow:
     
     def save_workflow_logs(self, log_filename="logs.txt", conf: Optional[dict] = None):
         try:
-            logger.info(f"Getting logs for workflow {self.workflow_name} in namespace {self.job_namespace}")
+            logger.info(f"Getting logs for workflow {self.workflow_config.workflow_id} in namespace {self.job_namespace}")
             # list pods for namespace
             pods = self.v1.list_namespaced_pod(namespace=self.job_namespace)
 
             logger.info(f"Saving logs to {log_filename}")
             with open(log_filename, 'w') as f:
                 for pod in pods.items:
-                    if self.workflow_name not in pod.metadata.name:
+                    # only get logs from pods that belong to the workflow
+                    if self.workflow_config.workflow_id not in pod.metadata.name:
                         continue
                     
                     logger.info(f"Getting logs for pod {pod.metadata.name}")
@@ -435,6 +436,13 @@ class ArgoWorkflow:
         except Exception as e:
             logger.error(f"Error getting logs: {e}")
             raise e
+        
+    def delete_workflow(self):
+        try:
+            self.v1.delete_namespace(name=self.job_namespace)
+            logger.info(f"Namespace {self.job_namespace} deleted.")
+        except Exception as e:
+            logger.error(f"Error deleting namespace {self.job_namespace}: {e}")
 # #####################################################################################################
 
 
@@ -1113,7 +1121,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         exit_status = argo_workflow.run_workflow_from_file(argo_template)
 
         # handle the outputs
-        argo_workflow.save_workflow_logs()
+        argo_workflow.save_workflow_logs(conf=conf)
 
         # if there is a collection_id on the input, add the processed item into that collection
         if exit_status == zoo.SERVICE_SUCCEEDED:
@@ -1125,13 +1133,17 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
             logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
             outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
             logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
-            return zoo.SERVICE_SUCCEEDED
 
         else:
             error_message = zoo._("Execution failed")
             logger.error(f"Execution failed: {error_message}")
             conf["lenv"]["message"] = error_message
-            return zoo.SERVICE_FAILED
+            exit_status = zoo.SERVICE_FAILED
+        
+        # Clean up the namespace
+        argo_workflow.delete_workflow()
+
+        return exit_status
 
     except Exception as e:
         logger.error("ERROR in processing execution template...")
