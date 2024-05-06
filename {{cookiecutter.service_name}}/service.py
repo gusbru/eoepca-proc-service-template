@@ -87,6 +87,7 @@ class ArgoWorkflow:
         self.conf = conf
         self.job_namespace: Optional[str] = None
         self.workflow_manifest = None
+        self.feature_collection = json.dumps({}, indent=2)
 
         # Load the kube config from the default location
         logger.info("Loading kube config")
@@ -418,10 +419,14 @@ class ArgoWorkflow:
                 logger.info(f"Logs saved to {log_filename}")
                 f.write(f"\n{'='*80}\n")
 
+            # get results
+            collection = read_file(f"s3://{self.job_information.workspace}/processing-results/{self.job_information.process_usid}")
+            self.feature_collection = json.dumps(collection.to_dict())
+
             #
             if self.conf is not None:
                 servicesLogs = {
-                    "url": os.path.join(self.conf['main']['tmpUrl'], self.job_namespace, os.path.basename(log_filename)),
+                    "url": os.path.join(self.conf['main']['tmpUrl'], f"{self.process_identifier}-{self.process_usid}", os.path.basename(log_filename)),
                     "title": f"Process execution log {os.path.basename(log_filename)}",
                     "rel": "related",
                 }
@@ -1132,7 +1137,7 @@ def execute_runner(conf, inputs, outputs):
             register_catalog(job_information)
             
             logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
-            # outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
+            outputs[list(outputs.keys())[0]]["value"] = argo_workflow.feature_collection
             logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
 
         else:
