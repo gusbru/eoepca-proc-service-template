@@ -58,15 +58,16 @@ from uuid import uuid4
 from kubernetes import client, config, watch
 import yaml
 
-logger.info(f"os.environ.AWS_REGION = {os.environ.get('AWS_REGION')}")
-logger.info(f"os.environ.AWS_S3_ENDPOINT = {os.environ.get('AWS_S3_ENDPOINT')}")
-logger.info(f"os.environ.AWS_ACCESS_KEY_ID = {os.environ.get('AWS_ACCESS_KEY_ID')}")
-logger.info(f"os.environ.AWS_SECRET_ACCESS_KEY = {os.environ.get('AWS_SECRET_ACCESS_KEY')}")
 
 class CustomStacIO(DefaultStacIO):
     """Custom STAC IO class that uses boto3 to read from S3."""
 
     def __init__(self):
+        logger.info("CustomStacIO init")
+        logger.info(f"AWS_REGION = {os.environ.get('AWS_REGION')}")
+        logger.info(f"AWS_S3_ENDPOINT = {os.environ.get('AWS_S3_ENDPOINT')}")
+        logger.info(f"AWS_ACCESS_KEY_ID = {os.environ.get('AWS_ACCESS_KEY_ID')}")
+        logger.info(f"AWS_SECRET_ACCESS_KEY = {os.environ.get('AWS_SECRET_ACCESS_KEY')}")
         self.session = botocore.session.Session()
         self.s3_client = self.session.create_client(
             service_name="s3",
@@ -105,7 +106,7 @@ class CustomStacIO(DefaultStacIO):
             super().write_text(dest, txt, *args, **kwargs)
 
 
-StacIO.set_default(CustomStacIO)
+# StacIO.set_default(CustomStacIO)
 
 
 class JobInformation:
@@ -529,6 +530,7 @@ class ArgoWorkflow:
                 f.write(f"\n{'='*80}\n")
 
             # get results
+            StacIO.set_default(CustomStacIO)
             collection_s3_path = f"s3://{self.job_information.workspace}/processing-results/{self.job_information.process_usid}/collection.json"
             logger.info(f"Getting collection at {collection_s3_path}")
             collection = read_file(collection_s3_path)
@@ -1064,6 +1066,12 @@ def get_credentials(workspace: str) -> WorkspaceCredentials:
         username=response_api['container_registry']['username'],
         password=response_api['container_registry']['password']
     )
+
+    # set environment variables
+    os.environ["AWS_REGION"] = storage.region
+    os.environ["AWS_S3_ENDPOINT"] = storage.endpoint
+    os.environ["AWS_ACCESS_KEY_ID"] = storage.access
+    os.environ["AWS_SECRET_ACCESS_KEY"] = storage.secret
 
     return WorkspaceCredentials(
         status=response_api['status'],
