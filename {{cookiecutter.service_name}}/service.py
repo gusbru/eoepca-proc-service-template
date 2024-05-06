@@ -58,6 +58,50 @@ from uuid import uuid4
 from kubernetes import client, config, watch
 import yaml
 
+class CustomStacIO(DefaultStacIO):
+    """Custom STAC IO class that uses boto3 to read from S3."""
+
+    def __init__(self):
+        self.session = botocore.session.Session()
+        self.s3_client = self.session.create_client(
+            service_name="s3",
+            region_name=os.environ.get("AWS_REGION"),
+            endpoint_url=os.environ.get("AWS_S3_ENDPOINT"),
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            verify=True,
+            use_ssl=True,
+            config=Config(s3={"addressing_style": "path", "signature_version": "s3v4"}),
+        )
+
+    def read_text(self, source, *args, **kwargs):
+        parsed = urlparse(source)
+        if parsed.scheme == "s3":
+            return (
+                self.s3_client.get_object(Bucket=parsed.netloc, Key=parsed.path[1:])[
+                    "Body"
+                ]
+                .read()
+                .decode("utf-8")
+            )
+        else:
+            return super().read_text(source, *args, **kwargs)
+
+    def write_text(self, dest, txt, *args, **kwargs):
+        parsed = urlparse(dest)
+        if parsed.scheme == "s3":
+            self.s3_client.put_object(
+                Body=txt.encode("UTF-8"),
+                Bucket=parsed.netloc,
+                Key=parsed.path[1:],
+                ContentType="application/geo+json",
+            )
+        else:
+            super().write_text(dest, txt, *args, **kwargs)
+
+
+StacIO.set_default(CustomStacIO)
+
 
 class JobInformation:
     def __init__(self, conf: dict[str, Any]):
@@ -480,7 +524,9 @@ class ArgoWorkflow:
                 f.write(f"\n{'='*80}\n")
 
             # get results
-            collection = read_file(f"s3://{self.job_information.workspace}/processing-results/{self.job_information.process_usid}")
+            collection_s3_path = f"s3://{self.job_information.workspace}/processing-results/{self.job_information.process_usid}/collection.json"
+            logger.info(f"Getting collection at {collection_s3_path}")
+            collection = read_file(collection_s3_path)
             self.feature_collection = json.dumps(collection.to_dict())
 
             #
@@ -513,49 +559,7 @@ class ArgoWorkflow:
 # #####################################################################################################
 
 
-class CustomStacIO(DefaultStacIO):
-    """Custom STAC IO class that uses boto3 to read from S3."""
 
-    def __init__(self):
-        self.session = botocore.session.Session()
-        self.s3_client = self.session.create_client(
-            service_name="s3",
-            region_name=os.environ.get("AWS_REGION"),
-            endpoint_url=os.environ.get("AWS_S3_ENDPOINT"),
-            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-            verify=True,
-            use_ssl=True,
-            config=Config(s3={"addressing_style": "path", "signature_version": "s3v4"}),
-        )
-
-    def read_text(self, source, *args, **kwargs):
-        parsed = urlparse(source)
-        if parsed.scheme == "s3":
-            return (
-                self.s3_client.get_object(Bucket=parsed.netloc, Key=parsed.path[1:])[
-                    "Body"
-                ]
-                .read()
-                .decode("utf-8")
-            )
-        else:
-            return super().read_text(source, *args, **kwargs)
-
-    def write_text(self, dest, txt, *args, **kwargs):
-        parsed = urlparse(dest)
-        if parsed.scheme == "s3":
-            self.s3_client.put_object(
-                Body=txt.encode("UTF-8"),
-                Bucket=parsed.netloc,
-                Key=parsed.path[1:],
-                ContentType="application/geo+json",
-            )
-        else:
-            super().write_text(dest, txt, *args, **kwargs)
-
-
-StacIO.set_default(CustomStacIO)
 
 
 class EoepcaCalrissianRunnerExecutionHandler(ExecutionHandler):
