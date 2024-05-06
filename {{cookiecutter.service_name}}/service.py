@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import zoo
-import botocore
+import boto3
 import jwt
 import requests
 import yaml
@@ -148,13 +148,15 @@ class CustomStacIO(DefaultStacIO):
         logger.info(f"AWS_REGION = {os.environ.get('AWS_REGION')}")
         logger.info(f"AWS_S3_ENDPOINT = {os.environ.get('AWS_S3_ENDPOINT')}")
         logger.info(f"AWS_ACCESS_KEY_ID = {os.environ.get('AWS_ACCESS_KEY_ID')}")
-        self.session = botocore.session.Session()
-        self.s3_client = self.session.create_client(
-            service_name="s3",
+        
+        self.session = boto3.Session(
             region_name=os.environ.get("AWS_REGION"),
-            endpoint_url=os.environ.get("AWS_S3_ENDPOINT"),
             aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+        )
+        self.s3_client = self.session.client(
+            service_name="s3",
+            endpoint_url=os.environ.get("AWS_S3_ENDPOINT"),
             verify=True,
             use_ssl=True,
             config=Config(s3={"addressing_style": "path", "signature_version": "s3v4"}),
