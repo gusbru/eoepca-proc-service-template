@@ -23,7 +23,6 @@ except ImportError:
 import json
 import os
 import sys
-import platform
 from urllib.parse import urlparse
 
 print(f"python path = {sys.path}")
@@ -381,6 +380,61 @@ class ArgoWorkflow:
         workflow = self._submit_workflow()
         exit_status = self.monitor_workflow(workflow)
         return exit_status
+    
+    def save_workflow_logs(self, log_filename="logs.txt", conf: Optional[dict] = None):
+        try:
+            logger.info(f"Getting logs for workflow {self.workflow_name} in namespace {self.job_namespace}")
+            # list pods for namespace
+            pods = self.v1.list_namespaced_pod(namespace=self.job_namespace)
+
+            logger.info(f"Saving logs to {log_filename}")
+            with open(log_filename, 'w') as f:
+                for pod in pods.items:
+                    if self.workflow_name not in pod.metadata.name:
+                        continue
+                    
+                    logger.info(f"Getting logs for pod {pod.metadata.name}")
+                    f.write(f"{'='*80}\n")
+                    f.write(f"Logs for pod {pod.metadata.name}:\n")
+                    f.write(f"{'='*80}\n")
+                    for container in pod.spec.containers:
+                        f.write(f"Container {container.name}:\n")
+                        f.write(self.v1.read_namespaced_pod_log(
+                            name=pod.metadata.name, 
+                            namespace=self.job_namespace,
+                            container=container.name
+                        ))
+                
+                logger.info(f"Logs saved to {log_filename}")
+                f.write(f"\n{'='*80}\n")
+
+            #
+            if conf is not None:
+                servicesLogs = [
+                    {
+                        "url": os.path.join(self.conf['main']['tmpUrl'],
+                                            f"{self.conf['lenv']['Identifier']}-{self.conf['lenv']['usid']}",
+                                            os.path.basename(log_filename)),
+                        "title": f"Tool log {os.path.basename(log_filename)}",
+                        "rel": "related",
+                    }
+                ]
+                
+                for i in range(len(servicesLogs)):
+                    okeys = ["url", "title", "rel"]
+                    keys = ["url", "title", "rel"]
+                    if i > 0:
+                        for j in range(len(keys)):
+                            keys[j] = keys[j] + "_" + str(i)
+                    for j in range(len(keys)):
+                        self.conf["service_logs"][keys[j]] = servicesLogs[i][okeys[j]]
+
+                self.conf["service_logs"]["length"] = str(len(servicesLogs))
+                
+
+        except Exception as e:
+            logger.error(f"Error getting logs: {e}")
+            raise e
 # #####################################################################################################
 
 
@@ -1058,20 +1112,22 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # 
         argo_workflow = ArgoWorkflow(workflow_config=workflow_config)
         exit_status = argo_workflow.run_workflow_from_file(argo_template)
 
+        # handle the outputs
+        argo_workflow.save_workflow_logs()
+
         # if there is a collection_id on the input, add the processed item into that collection
         if exit_status == zoo.SERVICE_SUCCEEDED:
             # Register Catalog
             # TODO: consider more use cases
+            logger.info("Registering catalog")
             register_catalog(job_information)
             
-            # TODO: handle the outputs
-            # logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
-            # outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
-            # logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
+            logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
+            outputs[list(outputs.keys())[0]]["value"] = execution_handler.feature_collection
+            logger.info(f"outputs = {json.dumps(outputs, indent=4)}")
             return zoo.SERVICE_SUCCEEDED
 
         else:
-            # TODO: handle the outputs
             error_message = zoo._("Execution failed")
             logger.error(f"Execution failed: {error_message}")
             conf["lenv"]["message"] = error_message
