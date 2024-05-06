@@ -413,8 +413,8 @@ class ArgoWorkflow:
             if conf is not None:
                 servicesLogs = [
                     {
-                        "url": os.path.join(self.conf['main']['tmpUrl'],
-                                            f"{self.conf['lenv']['Identifier']}-{self.conf['lenv']['usid']}",
+                        "url": os.path.join(conf['main']['tmpUrl'],
+                                            f"{conf['lenv']['Identifier']}-{self.conf['lenv']['usid']}",
                                             os.path.basename(log_filename)),
                         "title": f"Tool log {os.path.basename(log_filename)}",
                         "rel": "related",
