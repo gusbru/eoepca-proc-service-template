@@ -722,11 +722,12 @@
 #         conf["lenv"]["message"] = zoo._(f"Exception during execution...\n{stack}\n")
 #         return zoo.SERVICE_FAILED
 
+
 from ades import ADES
 
 def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs): # noqa
     ades_v2 = ADES(conf, inputs, outputs)
-    return ades_v2.execute_runner(conf, inputs, outputs)
+    return ades_v2.execute_runner()
 
 
 # #####################################################################################################
