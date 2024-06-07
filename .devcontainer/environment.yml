@@ -19,7 +19,7 @@ dependencies:
   - loguru
   - pip:
     - git+https://github.com/gusbru/zoo-calrissian-runner.git@test
-    - git+https://github.com/gusbru/ades.git@main
+    - git+https://github.com/gusbru/ades.git@job_namespace
     - attrs
     - cwl-utils==0.14
     - kubernetes==28.1.0
