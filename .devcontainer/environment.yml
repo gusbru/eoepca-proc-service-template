@@ -17,6 +17,7 @@ dependencies:
   - cwl-wrapper
   - pycalrissian
   - loguru
+  - hiredis
   - pip:
     - git+https://github.com/gusbru/zoo-calrissian-runner.git@test
     - git+https://github.com/gusbru/ades.git@job_namespace
@@ -29,4 +30,4 @@ dependencies:
     - pystac
     - python-dotenv
     - pyjwt
-    - redis[hiredis]~=5.0.7
+    - redis[hiredis]
