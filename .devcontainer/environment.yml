@@ -29,3 +29,4 @@ dependencies:
     - pystac
     - python-dotenv
     - pyjwt
+    - redis[hiredis]~=5.0.7
